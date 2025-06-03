@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -108,7 +107,7 @@ const GenerateFullPackTab: React.FC = () => {
                   <Checkbox
                     id="include-all-apps"
                     checked={includeAllApps}
-                    onCheckedChange={setIncludeAllApps}
+                    onCheckedChange={(checked) => setIncludeAllApps(checked === true)}
                   />
                   <label htmlFor="include-all-apps" className="text-sm font-medium">
                     Include all applications
@@ -119,7 +118,7 @@ const GenerateFullPackTab: React.FC = () => {
                   <Checkbox
                     id="include-docs"
                     checked={includeDocumentation}
-                    onCheckedChange={setIncludeDocumentation}
+                    onCheckedChange={(checked) => setIncludeDocumentation(checked === true)}
                   />
                   <label htmlFor="include-docs" className="text-sm font-medium">
                     Include documentation
@@ -130,7 +129,7 @@ const GenerateFullPackTab: React.FC = () => {
                   <Checkbox
                     id="include-examples"
                     checked={includeExamples}
-                    onCheckedChange={setIncludeExamples}
+                    onCheckedChange={(checked) => setIncludeExamples(checked === true)}
                   />
                   <label htmlFor="include-examples" className="text-sm font-medium">
                     Include example projects
