@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -7,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
-import { Atom, Play, AlertTriangle } from 'lucide-react';
+import { Atom, Play, AlertTriangle, Cpu } from 'lucide-react';
 import { STM32_COLORS } from '@/styles/stm32-theme';
 
 interface GenerateApplicationTabProps {
