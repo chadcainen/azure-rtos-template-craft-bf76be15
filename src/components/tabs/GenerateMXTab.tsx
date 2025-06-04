@@ -1,16 +1,20 @@
-
 import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
-import { Cog, Play, FileText, CheckCircle } from 'lucide-react';
+import { Cog, Play, FileText, CheckCircle, AlertTriangle } from 'lucide-react';
 import { STM32_COLORS } from '@/styles/stm32-theme';
 
-const GenerateMXTab: React.FC = () => {
+interface GenerateMXTabProps {
+  projectData?: any;
+}
+
+const GenerateMXTab: React.FC<GenerateMXTabProps> = ({ projectData }) => {
   const [selectedSeries, setSelectedSeries] = useState('');
   const [projectName, setProjectName] = useState('');
   const [outputPath, setOutputPath] = useState('./output');
@@ -28,6 +32,19 @@ const GenerateMXTab: React.FC = () => {
     { value: 'wb', label: 'STM32WB Series', description: 'Wireless dual core ARM Cortex-M4/M0+' },
     { value: 'wl', label: 'STM32WL Series', description: 'Wireless LoRa long range' },
   ];
+
+  if (!projectData) {
+    return (
+      <div className="space-y-6">
+        <Alert>
+          <AlertTriangle className="h-4 w-4" />
+          <AlertDescription>
+            Please upload the PACK_AZRTOS_AutoGen project first to generate MX files.
+          </AlertDescription>
+        </Alert>
+      </div>
+    );
+  }
 
   const handleGenerate = async () => {
     if (!selectedSeries || !projectName) {

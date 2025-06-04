@@ -1,16 +1,20 @@
-
 import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
-import { Atom, Play, Cpu } from 'lucide-react';
+import { Atom, Play, AlertTriangle } from 'lucide-react';
 import { STM32_COLORS } from '@/styles/stm32-theme';
 
-const GenerateApplicationTab: React.FC = () => {
+interface GenerateApplicationTabProps {
+  projectData?: any;
+}
+
+const GenerateApplicationTab: React.FC<GenerateApplicationTabProps> = ({ projectData }) => {
   const [selectedBoard, setSelectedBoard] = useState('');
   const [selectedApp, setSelectedApp] = useState('');
   const [appName, setAppName] = useState('');
@@ -33,6 +37,19 @@ const GenerateApplicationTab: React.FC = () => {
     { value: 'Ux_Device_HID', label: 'USBX - USB Device HID', middleware: 'USBX' },
     { value: 'Ux_Host_MSC', label: 'USBX - USB Host MSC', middleware: 'USBX' },
   ];
+
+  if (!projectData) {
+    return (
+      <div className="space-y-6">
+        <Alert>
+          <AlertTriangle className="h-4 w-4" />
+          <AlertDescription>
+            Please upload the PACK_AZRTOS_AutoGen project first to generate application files.
+          </AlertDescription>
+        </Alert>
+      </div>
+    );
+  }
 
   const handleGenerate = async () => {
     if (!selectedBoard || !selectedApp || !appName) {

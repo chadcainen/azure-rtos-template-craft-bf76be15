@@ -7,10 +7,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
-import { Package, Play, CheckCircle } from 'lucide-react';
+import { Package, Play, CheckCircle, AlertTriangle } from 'lucide-react';
 import { STM32_COLORS } from '@/styles/stm32-theme';
 
-const GenerateFullPackTab: React.FC = () => {
+interface GenerateFullPackTabProps {
+  projectData?: any;
+}
+
+const GenerateFullPackTab: React.FC<GenerateFullPackTabProps> = ({ projectData }) => {
   const [selectedSeries, setSelectedSeries] = useState('');
   const [packName, setPackName] = useState('');
   const [includeAllApps, setIncludeAllApps] = useState(true);
@@ -61,6 +65,19 @@ const GenerateFullPackTab: React.FC = () => {
     'Example applications and demos',
     'Board-specific configurations'
   ];
+
+  if (!projectData) {
+    return (
+      <div className="space-y-6">
+        <Alert>
+          <AlertTriangle className="h-4 w-4" />
+          <AlertDescription>
+            Please upload the PACK_AZRTOS_AutoGen project first to generate full pack.
+          </AlertDescription>
+        </Alert>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">

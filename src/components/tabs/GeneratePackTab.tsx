@@ -1,17 +1,20 @@
-
 import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Checkbox } from '@/components/ui/checkbox';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
-import { Zap, Play, Package } from 'lucide-react';
+import { Zap, Play, Package, AlertTriangle } from 'lucide-react';
 import { STM32_COLORS } from '@/styles/stm32-theme';
 
-const GeneratePackTab: React.FC = () => {
+interface GeneratePackTabProps {
+  projectData?: any;
+}
+
+const GeneratePackTab: React.FC<GeneratePackTabProps> = ({ projectData }) => {
   const [selectedSeries, setSelectedSeries] = useState('');
   const [packName, setPackName] = useState('');
   const [packVersion, setPackVersion] = useState('1.0.0');
@@ -65,6 +68,19 @@ const GeneratePackTab: React.FC = () => {
     (window as any).addConsoleLog?.('success', `Pack ${packName} v${packVersion} generated successfully`);
     setIsGenerating(false);
   };
+
+  if (!projectData) {
+    return (
+      <div className="space-y-6">
+        <Alert>
+          <AlertTriangle className="h-4 w-4" />
+          <AlertDescription>
+            Please upload the PACK_AZRTOS_AutoGen project first to generate pack files.
+          </AlertDescription>
+        </Alert>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
