@@ -11,6 +11,7 @@ import { Progress } from '@/components/ui/progress';
 import { Cog, Play, AlertTriangle, FolderOpen } from 'lucide-react';
 import { STM32_COLORS } from '@/styles/stm32-theme';
 import { parseProjectData } from '@/utils/projectParser';
+import { backendInterface } from '@/utils/backendInterface';
 
 interface GenerateMXTabProps {
   projectData?: any;
@@ -49,30 +50,42 @@ const GenerateMXTab: React.FC<GenerateMXTabProps> = ({ projectData }) => {
     setIsGenerating(true);
     setProgress(0);
 
-    (window as any).addConsoleLog?.('info', `Starting MX files generation for ${selectedSeries} series...`);
-
-    const steps = [
-      'Validating project structure...',
-      'Loading series configuration...',
-      'Parsing template files...',
-      'Generating MX files...',
-      'Writing configuration files...',
-      'Finalizing generation...'
-    ];
-
     try {
-      for (let i = 0; i < steps.length; i++) {
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        setProgress(((i + 1) / steps.length) * 100);
-        (window as any).addConsoleLog?.('info', steps[i]);
-      }
+      // Simulate progress updates
+      const progressInterval = setInterval(() => {
+        setProgress(prev => {
+          if (prev >= 95) {
+            clearInterval(progressInterval);
+            return 95;
+          }
+          return prev + 15;
+        });
+      }, 1000);
 
-      (window as any).addConsoleLog?.('success', `MX files generated successfully for ${selectedSeries} series`);
-      (window as any).addConsoleLog?.('info', `Output directory: ${outputDirectory}`);
+      const result = await backendInterface.generateMXFiles({
+        series: selectedSeries,
+        outputDirectory: outputDirectory
+      });
+
+      clearInterval(progressInterval);
+      setProgress(100);
+
+      if (result.success) {
+        (window as any).addConsoleLog?.('success', result.message);
+        if (result.outputPath) {
+          (window as any).addConsoleLog?.('info', `Files saved to: ${result.outputPath}`);
+        }
+      } else {
+        (window as any).addConsoleLog?.('error', result.message);
+        if (result.error) {
+          (window as any).addConsoleLog?.('error', `Error details: ${result.error}`);
+        }
+      }
     } catch (error) {
       (window as any).addConsoleLog?.('error', `Generation failed: ${error}`);
     } finally {
       setIsGenerating(false);
+      setTimeout(() => setProgress(0), 2000);
     }
   };
 
