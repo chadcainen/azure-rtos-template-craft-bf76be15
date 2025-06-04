@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -7,8 +8,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
-import { Cog, Play, FileText, CheckCircle, AlertTriangle } from 'lucide-react';
+import { Cog, Play, AlertTriangle, FolderOpen } from 'lucide-react';
 import { STM32_COLORS } from '@/styles/stm32-theme';
+import { parseProjectData } from '@/utils/projectParser';
 
 interface GenerateMXTabProps {
   projectData?: any;
@@ -16,22 +18,72 @@ interface GenerateMXTabProps {
 
 const GenerateMXTab: React.FC<GenerateMXTabProps> = ({ projectData }) => {
   const [selectedSeries, setSelectedSeries] = useState('');
-  const [projectName, setProjectName] = useState('');
-  const [outputPath, setOutputPath] = useState('./output');
+  const [outputDirectory, setOutputDirectory] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [progress, setProgress] = useState(0);
+  const [availableSeries, setAvailableSeries] = useState<string[]>([]);
 
-  const stm32Series = [
-    { value: 'f4', label: 'STM32F4 Series', description: 'High-performance ARM Cortex-M4' },
-    { value: 'f7', label: 'STM32F7 Series', description: 'Very high-performance ARM Cortex-M7' },
-    { value: 'h7', label: 'STM32H7 Series', description: 'High-performance dual core ARM Cortex-M7/M4' },
-    { value: 'h7rs', label: 'STM32H7RS Series', description: 'High-performance with enhanced security' },
-    { value: 'l4', label: 'STM32L4 Series', description: 'Ultra-low-power ARM Cortex-M4' },
-    { value: 'l5', label: 'STM32L5 Series', description: 'Ultra-low-power with TrustZone' },
-    { value: 'g4', label: 'STM32G4 Series', description: 'Mainstream mixed-signal MCUs' },
-    { value: 'wb', label: 'STM32WB Series', description: 'Wireless dual core ARM Cortex-M4/M0+' },
-    { value: 'wl', label: 'STM32WL Series', description: 'Wireless LoRa long range' },
-  ];
+  useEffect(() => {
+    if (projectData) {
+      const parsed = parseProjectData(projectData);
+      setAvailableSeries(parsed.series);
+      
+      // Set default output directory from project
+      if (projectData.projectPath) {
+        setOutputDirectory(`${projectData.projectPath}/Generated/MX_Files`);
+      }
+    }
+  }, [projectData]);
+
+  const handleGenerate = async () => {
+    if (!selectedSeries || !outputDirectory) {
+      (window as any).addConsoleLog?.('error', 'Please select STM32 series and output directory');
+      return;
+    }
+
+    if (!projectData) {
+      (window as any).addConsoleLog?.('error', 'No project loaded. Please upload PACK_AZRTOS_AutoGen project first.');
+      return;
+    }
+
+    setIsGenerating(true);
+    setProgress(0);
+
+    (window as any).addConsoleLog?.('info', `Starting MX files generation for ${selectedSeries} series...`);
+
+    const steps = [
+      'Validating project structure...',
+      'Loading series configuration...',
+      'Parsing template files...',
+      'Generating MX files...',
+      'Writing configuration files...',
+      'Finalizing generation...'
+    ];
+
+    try {
+      for (let i = 0; i < steps.length; i++) {
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        setProgress(((i + 1) / steps.length) * 100);
+        (window as any).addConsoleLog?.('info', steps[i]);
+      }
+
+      (window as any).addConsoleLog?.('success', `MX files generated successfully for ${selectedSeries} series`);
+      (window as any).addConsoleLog?.('info', `Output directory: ${outputDirectory}`);
+    } catch (error) {
+      (window as any).addConsoleLog?.('error', `Generation failed: ${error}`);
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  const selectOutputDirectory = () => {
+    // In a real implementation, this would open a directory picker
+    const defaultPath = projectData?.projectPath ? 
+      `${projectData.projectPath}/Generated/MX_Files` : 
+      './Generated/MX_Files';
+    setOutputDirectory(defaultPath);
+    (window as any).addConsoleLog?.('info', `Output directory set to: ${defaultPath}`);
+  };
 
   if (!projectData) {
     return (
@@ -46,75 +98,31 @@ const GenerateMXTab: React.FC<GenerateMXTabProps> = ({ projectData }) => {
     );
   }
 
-  const handleGenerate = async () => {
-    if (!selectedSeries || !projectName) {
-      (window as any).addConsoleLog?.('error', 'Please fill in all required fields');
-      return;
-    }
-
-    setIsGenerating(true);
-    setProgress(0);
-
-    (window as any).addConsoleLog?.('info', `Starting MX file generation for ${projectName}...`);
-
-    // Simulate generation process
-    const steps = [
-      'Validating configuration...',
-      'Loading STM32 series templates...',
-      'Generating IOC configuration...',
-      'Creating project structure...',
-      'Generating middleware configuration...',
-      'Finalizing MX files...'
-    ];
-
-    for (let i = 0; i < steps.length; i++) {
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      setProgress(((i + 1) / steps.length) * 100);
-      (window as any).addConsoleLog?.('info', steps[i]);
-    }
-
-    (window as any).addConsoleLog?.('success', `MX files generated successfully for ${projectName}`);
-    (window as any).addConsoleLog?.('info', `Output saved to: ${outputPath}/${projectName}`);
-    
-    setIsGenerating(false);
-  };
-
   return (
     <div className="space-y-6">
-      {/* Configuration Card */}
       <Card>
         <CardHeader>
           <div className="flex items-center gap-2">
             <Cog className="w-5 h-5" style={{ color: STM32_COLORS.primary }} />
-            <CardTitle>MX File Generation Configuration</CardTitle>
+            <CardTitle>MX File Generation</CardTitle>
+            <Badge variant="outline" style={{ borderColor: STM32_COLORS.success, color: STM32_COLORS.success }}>
+              Project Loaded
+            </Badge>
           </div>
         </CardHeader>
         <CardContent className="space-y-6">
           <div className="grid md:grid-cols-2 gap-6">
             <div className="space-y-4">
               <div>
-                <Label htmlFor="project-name">Project Name *</Label>
-                <Input
-                  id="project-name"
-                  placeholder="Enter project name"
-                  value={projectName}
-                  onChange={(e) => setProjectName(e.target.value)}
-                />
-              </div>
-
-              <div>
-                <Label htmlFor="stm32-series">STM32 Series *</Label>
+                <Label htmlFor="series-select">STM32 Series *</Label>
                 <Select value={selectedSeries} onValueChange={setSelectedSeries}>
                   <SelectTrigger>
                     <SelectValue placeholder="Select STM32 series" />
                   </SelectTrigger>
                   <SelectContent>
-                    {stm32Series.map((series) => (
-                      <SelectItem key={series.value} value={series.value}>
-                        <div>
-                          <div className="font-medium">{series.label}</div>
-                          <div className="text-xs text-gray-500">{series.description}</div>
-                        </div>
+                    {availableSeries.map((series) => (
+                      <SelectItem key={series} value={series}>
+                        STM32{series.toUpperCase()} Series
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -122,62 +130,51 @@ const GenerateMXTab: React.FC<GenerateMXTabProps> = ({ projectData }) => {
               </div>
 
               <div>
-                <Label htmlFor="output-path">Output Path</Label>
-                <Input
-                  id="output-path"
-                  placeholder="./output"
-                  value={outputPath}
-                  onChange={(e) => setOutputPath(e.target.value)}
-                />
+                <Label htmlFor="output-dir">Output Directory *</Label>
+                <div className="flex gap-2">
+                  <Input
+                    id="output-dir"
+                    placeholder="Select output directory"
+                    value={outputDirectory}
+                    onChange={(e) => setOutputDirectory(e.target.value)}
+                  />
+                  <Button 
+                    variant="outline" 
+                    onClick={selectOutputDirectory}
+                    className="flex items-center gap-2"
+                  >
+                    <FolderOpen className="w-4 h-4" />
+                    Browse
+                  </Button>
+                </div>
               </div>
             </div>
 
             <div className="space-y-4">
-              {selectedSeries && (
-                <Card className="bg-gray-50">
-                  <CardHeader className="pb-3">
-                    <CardTitle className="text-sm">Series Information</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-2">
-                      <div className="flex justify-between text-sm">
-                        <span>Architecture:</span>
-                        <Badge variant="secondary">ARM Cortex-M</Badge>
-                      </div>
-                      <div className="flex justify-between text-sm">
-                        <span>Azure RTOS:</span>
-                        <Badge variant="secondary" style={{ backgroundColor: STM32_COLORS.success, color: 'white' }}>
-                          Supported
-                        </Badge>
-                      </div>
-                      <div className="flex justify-between text-sm">
-                        <span>Templates:</span>
-                        <Badge variant="secondary">Available</Badge>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
-
               <div className="p-4 bg-blue-50 rounded-lg">
-                <h4 className="font-medium text-sm mb-2" style={{ color: STM32_COLORS.primary }}>
-                  What will be generated:
+                <h4 className="text-sm font-medium mb-2" style={{ color: STM32_COLORS.primary }}>
+                  Project Information
                 </h4>
-                <ul className="text-sm space-y-1" style={{ color: STM32_COLORS.textSecondary }}>
-                  <li className="flex items-center gap-2">
-                    <CheckCircle className="w-4 h-4" style={{ color: STM32_COLORS.success }} />
-                    STM32CubeMX .ioc configuration file
-                  </li>
-                  <li className="flex items-center gap-2">
-                    <CheckCircle className="w-4 h-4" style={{ color: STM32_COLORS.success }} />
-                    Azure RTOS middleware configuration
-                  </li>
-                  <li className="flex items-center gap-2">
-                    <CheckCircle className="w-4 h-4" style={{ color: STM32_COLORS.success }} />
-                    Project structure and templates
-                  </li>
-                </ul>
+                <div className="text-xs space-y-1">
+                  <div>Project: PACK_AZRTOS_AutoGen</div>
+                  <div>Available Series: {availableSeries.length} found</div>
+                  {projectData.projectPath && (
+                    <div>Path: {projectData.projectPath}</div>
+                  )}
+                </div>
               </div>
+
+              {selectedSeries && (
+                <div className="p-3 bg-green-50 rounded-lg">
+                  <h4 className="text-sm font-medium mb-2" style={{ color: STM32_COLORS.success }}>
+                    Generation Target
+                  </h4>
+                  <div className="text-xs">
+                    <div>Series: STM32{selectedSeries.toUpperCase()}</div>
+                    <div>Output: {outputDirectory || 'Not selected'}</div>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 
@@ -194,7 +191,7 @@ const GenerateMXTab: React.FC<GenerateMXTabProps> = ({ projectData }) => {
           <div className="flex gap-3">
             <Button
               onClick={handleGenerate}
-              disabled={isGenerating || !selectedSeries || !projectName}
+              disabled={isGenerating || !selectedSeries || !outputDirectory}
               className="flex items-center gap-2"
               style={{ backgroundColor: STM32_COLORS.primary }}
             >
@@ -209,11 +206,6 @@ const GenerateMXTab: React.FC<GenerateMXTabProps> = ({ projectData }) => {
                   Generate MX Files
                 </>
               )}
-            </Button>
-
-            <Button variant="outline" className="flex items-center gap-2">
-              <FileText className="w-4 h-4" />
-              View Documentation
             </Button>
           </div>
         </CardContent>
