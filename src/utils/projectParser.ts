@@ -18,6 +18,43 @@ export interface ProjectStructure {
   applications: string[];
 }
 
+// Static mappings based on the project structure
+export const SERIES_TO_BOARDS: Record<string, string[]> = {
+  'f4': ['STM32469I-Discovery', 'STM32F429ZI-Nucleo'],
+  'f7': ['STM32F767ZI-Nucleo', 'STM32F769I-Discovery'],
+  'g4': ['NUCLEO-G474RE', 'STM32G474E-EVAL'],
+  'h7': ['NUCLEO-H723ZG', 'STM32H735G-DK', 'STM32H743I-EVAL', 'STM32H747I-DISCO'],
+  'h7rs': ['NUCLEO-H7S3L8', 'STM32H7S78-DK'],
+  'l4': ['NUCLEO-L4R5ZI', 'STM32L4R9I-Discovery'],
+  'l5': ['NUCLEO-L552ZE-Q', 'STM32L562E-DK'],
+  'wb': ['P-NUCLEO-WB55.Nucleo', 'STM32WB5MM-DK'],
+  'wl': ['NUCLEO-WL55JC']
+};
+
+export const BOARD_TO_MIDDLEWARE: Record<string, string[]> = {
+  "NUCLEO-G0B1RE": ["ThreadX"],
+  "NUCLEO-G474RE": ["ThreadX", "FileX"],
+  "NUCLEO-H723ZG": ["ThreadX", "NetXDuo", "USBX"],
+  "NUCLEO-H7S3L8": ["ThreadX", "NetXDuo", "USBX"],
+  "NUCLEO-L4R5ZI": ["ThreadX", "USBX"],
+  "NUCLEO-L552ZE-Q": ["ThreadX", "USBX"],
+  "NUCLEO-WL55JC": ["ThreadX", "FileX"],
+  "P-NUCLEO-WB55.Nucleo": ["ThreadX", "FileX", "USBX"],
+  "STM32469I-Discovery": ["ThreadX", "FileX", "USBX"],
+  "STM32F429ZI-Nucleo": ["ThreadX", "NetXDuo", "USBX"],
+  "STM32F767ZI-Nucleo": ["ThreadX", "NetXDuo", "USBX"],
+  "STM32F769I-Discovery": ["FileX", "NetXDuo", "USBX"],
+  "STM32G0C1E-EV": ["ThreadX", "USBX"],
+  "STM32G474E-EVAL": ["USBX", "FileX"],
+  "STM32H735G-DK": ["ThreadX", "NetXDuo", "USBX", "FileX"],
+  "STM32H743I-EVAL": ["USBX"],
+  "STM32H747I-DISCO": ["NetXDuo", "USBX"],
+  "STM32H7S78-DK": ["ThreadX", "FileX", "USBX", "NetXDuo"],
+  "STM32L4R9I-Discovery": ["FileX", "ThreadX", "USBX"],
+  "STM32L562E-DK": ["FileX"],
+  "STM32WB5MM-DK": ["FileX", "USBX"]
+};
+
 export const parseProjectData = (projectData: any): ProjectStructure => {
   if (!projectData) {
     return {
@@ -28,47 +65,63 @@ export const parseProjectData = (projectData: any): ProjectStructure => {
     };
   }
 
-  // Extract available series from project structure
   const series = ['f4', 'f7', 'g4', 'h7', 'h7rs', 'l4', 'l5', 'wb', 'wl'];
   
-  // Parse board configurations from project files
+  // Parse board configurations from uploaded project files
   const boards: BoardConfig[] = [];
-  const middleware = new Set<string>();
+  const middleware = new Set<string>(['ThreadX', 'FileX', 'NetXDuo', 'USBX']);
   const applications = new Set<string>();
 
-  // Mock parsing logic - in real implementation this would parse actual project files
-  // This would read from the apps/json/*.json files in the uploaded project
-  const mockBoards = [
-    {
-      name: 'NUCLEO-H723ZG',
-      apps: ['Tx_Thread_Creation', 'Nx_TCP_Echo_Client', 'Ux_Host_MSC'],
-      apps_details: [
-        {
-          name: 'Tx_Thread_Creation',
-          description: 'This application demonstrates basic ThreadX thread creation and management.',
-          features: ['Thread creation', 'Thread scheduling', 'Basic synchronization'],
-          requirements: ['STM32H723ZG', 'ThreadX middleware']
-        }
-      ]
-    },
-    {
-      name: 'STM32F767ZI-Nucleo',
-      apps: ['Fx_File_Edit_Standalone', 'Nx_UDP_Echo_Server', 'Ux_Device_CDC_ACM'],
-      apps_details: []
-    }
-  ];
-
-  mockBoards.forEach(board => {
-    boards.push(board);
-    board.apps.forEach(app => {
-      applications.add(app);
-      // Extract middleware from app prefix
-      if (app.startsWith('Tx_')) middleware.add('ThreadX');
-      if (app.startsWith('Fx_')) middleware.add('FileX');
-      if (app.startsWith('Nx_')) middleware.add('NetXDuo');
-      if (app.startsWith('Ux_')) middleware.add('USBX');
+  // Parse JSON files to get actual board configurations
+  if (projectData.apps?.json) {
+    projectData.apps.json.forEach((file: any) => {
+      const fileName = file.name;
+      
+      // Skip series files (f4.json, h7.json, etc.)
+      if (/^[a-z]+\d*\.json$/.test(fileName)) {
+        return;
+      }
+      
+      // Board JSON files
+      const boardName = fileName.replace('.json', '');
+      
+      try {
+        // In a real implementation, we would read the file content
+        // For now, we'll use the middleware mapping
+        const boardMiddleware = BOARD_TO_MIDDLEWARE[boardName] || [];
+        const boardApps: string[] = [];
+        
+        // Add mock applications based on middleware
+        boardMiddleware.forEach(mw => {
+          if (mw === 'ThreadX') {
+            boardApps.push('Tx_Thread_Creation', 'Tx_Thread_Sync', 'Tx_LowPower', 'Tx_Thread_MsgQueue');
+          } else if (mw === 'FileX') {
+            boardApps.push('Fx_File_Edit_Standalone', 'Fx_Dual_Instance', 'Fx_MultiAccess', 'Fx_NoR_Write_Read_File', 'Fx_uSD_File_Edit');
+          } else if (mw === 'NetXDuo') {
+            boardApps.push('Nx_TCP_Echo_Client', 'Nx_TCP_Echo_Server', 'Nx_UDP_Echo_Client', 'Nx_UDP_Echo_Server', 'Nx_WebServer', 'Nx_MQTT_Client', 'Nx_SNTP_Client', 'Nx_Iperf');
+          } else if (mw === 'USBX') {
+            boardApps.push('Ux_Device_CDC_ACM', 'Ux_Device_HID', 'Ux_Device_MSC', 'Ux_Host_HID', 'Ux_Host_MSC', 'Ux_Device_CustomHID', 'Ux_Device_DFU', 'Ux_Host_CDC_ACM');
+          }
+        });
+        
+        boards.push({
+          name: boardName,
+          apps: boardApps,
+          apps_details: boardApps.map(app => ({
+            name: app,
+            description: `${app} application for ${boardName}`,
+            features: [`${app.split('_')[0]} middleware`, 'Real-time processing', 'Azure RTOS integration'],
+            requirements: [boardName, `${app.split('_')[0]} middleware`]
+          }))
+        });
+        
+        boardApps.forEach(app => applications.add(app));
+        
+      } catch (error) {
+        console.error(`Error parsing board file ${fileName}:`, error);
+      }
     });
-  });
+  }
 
   return {
     series,
@@ -79,45 +132,250 @@ export const parseProjectData = (projectData: any): ProjectStructure => {
 };
 
 export const getBoardsForSeries = (series: string, projectData: any): string[] => {
-  const seriesBoards: Record<string, string[]> = {
-    'f4': ['STM32469I-Discovery', 'STM32F429ZI-Nucleo'],
-    'f7': ['STM32F767ZI-Nucleo', 'STM32F769I-Discovery'],
-    'g4': ['NUCLEO-G474RE', 'STM32G474E-EVAL'],
-    'h7': ['NUCLEO-H723ZG', 'STM32H735G-DK', 'STM32H743I-EVAL', 'STM32H747I-DISCO'],
-    'h7rs': ['NUCLEO-H7S3L8', 'STM32H7S78-DK'],
-    'l4': ['NUCLEO-L4R5ZI', 'STM32L4R9I-Discovery'],
-    'l5': ['NUCLEO-L552ZE-Q', 'STM32L562E-DK'],
-    'wb': ['P-NUCLEO-WB55.Nucleo', 'STM32WB5MM-DK'],
-    'wl': ['NUCLEO-WL55JC']
-  };
-
-  return seriesBoards[series] || [];
+  return SERIES_TO_BOARDS[series] || [];
 };
 
 export const getMiddlewareForBoard = (board: string, projectData: any): string[] => {
-  const boardMiddleware: Record<string, string[]> = {
-    'NUCLEO-H723ZG': ['ThreadX', 'NetXDuo', 'USBX'],
-    'STM32F767ZI-Nucleo': ['ThreadX', 'NetXDuo', 'USBX'],
-    'NUCLEO-G474RE': ['ThreadX', 'FileX'],
-    'STM32H735G-DK': ['ThreadX', 'NetXDuo', 'USBX', 'FileX']
-  };
-
-  return boardMiddleware[board] || [];
+  return BOARD_TO_MIDDLEWARE[board] || [];
 };
 
 export const getApplicationsForMiddleware = (board: string, middleware: string, projectData: any): string[] => {
-  const mockApplications: Record<string, Record<string, string[]>> = {
-    'NUCLEO-H723ZG': {
-      'ThreadX': ['Tx_Thread_Creation', 'Tx_Thread_Sync', 'Tx_Semaphore'],
-      'NetXDuo': ['Nx_TCP_Echo_Client', 'Nx_UDP_Echo_Server'],
-      'USBX': ['Ux_Host_MSC', 'Ux_Device_CDC_ACM']
-    },
-    'STM32F767ZI-Nucleo': {
-      'ThreadX': ['Tx_Thread_Creation', 'Tx_LowPower'],
-      'NetXDuo': ['Nx_TCP_Echo_Server', 'Nx_WebHTTP_Server'],
-      'USBX': ['Ux_Host_HID', 'Ux_Device_MSC']
+  // Try to get from actual JSON file if available
+  if (projectData?.apps?.json) {
+    const boardFile = projectData.apps.json.find((file: any) => 
+      file.name === `${board}.json`
+    );
+    
+    if (boardFile) {
+      // In a real implementation, we would read the file content
+      // For now, return based on middleware prefix
+      const allApps = ['Tx_Thread_Creation', 'Tx_Thread_Sync', 'Tx_LowPower', 'Tx_Thread_MsgQueue',
+                      'Fx_File_Edit_Standalone', 'Fx_Dual_Instance', 'Fx_MultiAccess', 'Fx_NoR_Write_Read_File', 'Fx_uSD_File_Edit',
+                      'Nx_TCP_Echo_Client', 'Nx_TCP_Echo_Server', 'Nx_UDP_Echo_Client', 'Nx_UDP_Echo_Server', 'Nx_WebServer', 'Nx_MQTT_Client', 'Nx_SNTP_Client', 'Nx_Iperf',
+                      'Ux_Device_CDC_ACM', 'Ux_Device_HID', 'Ux_Device_MSC', 'Ux_Host_HID', 'Ux_Host_MSC', 'Ux_Device_CustomHID', 'Ux_Device_DFU', 'Ux_Host_CDC_ACM'];
+      
+      const prefix = middleware === 'ThreadX' ? 'Tx_' : 
+                    middleware === 'FileX' ? 'Fx_' :
+                    middleware === 'NetXDuo' ? 'Nx_' :
+                    middleware === 'USBX' ? 'Ux_' : '';
+      
+      return allApps.filter(app => app.startsWith(prefix));
     }
-  };
+  }
+  
+  return [];
+};
 
-  return mockApplications[board]?.[middleware] || [];
+export const getProjectFiles = (projectData: any) => {
+  if (!projectData) return null;
+  
+  return {
+    apps: projectData.apps || {},
+    templates: projectData.apps?.templates || [],
+    json: projectData.apps?.json || [],
+    pack: projectData.pack || []
+  };
+};
+
+export const getTemplateFiles = (middleware: string, application: string, projectData: any): string[] => {
+  const files: string[] = [];
+  
+  // Mock template files based on project structure
+  if (projectData?.apps?.[middleware]?.[application]) {
+    // Return template files that would exist for this application
+    files.push(
+      `${application}/.extSettings.j2`,
+      `${application}/README.md.j2`,
+      `${application}/Core/Src/main.c.j2`,
+      `${application}/Core/Inc/main.h.j2`,
+      `${application}/AZURE_RTOS/app_azure_rtos.c.j2`
+    );
+    
+    if (middleware === 'ThreadX') {
+      files.push(
+        `${application}/Inc/app_threadx.h.j2`,
+        `${application}/Src/app_threadx.c.j2`
+      );
+    } else if (middleware === 'FileX') {
+      files.push(
+        `${application}/FileX/App/app_filex.c.j2`,
+        `${application}/FileX/App/app_filex.h.j2`
+      );
+    } else if (middleware === 'NetXDuo') {
+      files.push(
+        `${application}/NetXDuo/App/app_netxduo.c.j2`,
+        `${application}/NetXDuo/App/app_netxduo.h.j2`
+      );
+    } else if (middleware === 'USBX') {
+      files.push(
+        `${application}/USBX/App/app_usbx_device.c.j2`,
+        `${application}/USBX/App/app_usbx_device.h.j2`
+      );
+    }
+  }
+  
+  return files;
+};
+
+export const getFileContent = async (filePath: string, projectData: any): Promise<string> => {
+  // In a real implementation, this would read the actual file content
+  // For now, return mock content based on file type
+  
+  if (filePath.endsWith('.j2')) {
+    if (filePath.includes('main.c')) {
+      return `/* USER CODE BEGIN Header */
+/**
+  ******************************************************************************
+  * @file    main.c
+  * @author  MCD Application Team
+  * @brief   Main program body for {{ app_name }}
+  ******************************************************************************
+  */
+/* USER CODE END Header */
+
+/* Includes ------------------------------------------------------------------*/
+#include "main.h"
+#include "app_azure_rtos.h"
+
+/* USER CODE BEGIN Includes */
+
+/* USER CODE END Includes */
+
+/* USER CODE BEGIN PTD */
+
+/* USER CODE END PTD */
+
+/* USER CODE BEGIN PD */
+
+/* USER CODE END PD */
+
+/* USER CODE BEGIN PV */
+
+/* USER CODE END PV */
+
+/* USER CODE BEGIN PFP */
+
+/* USER CODE END PFP */
+
+/* USER CODE BEGIN 0 */
+
+/* USER CODE END 0 */
+
+/**
+  * @brief  The application entry point.
+  * @retval int
+  */
+int main(void)
+{
+  /* USER CODE BEGIN 1 */
+
+  /* USER CODE END 1 */
+
+  /* MCU Configuration--------------------------------------------------------*/
+
+  /* Reset of all peripherals, Initializes the Flash interface and the Systick. */
+  HAL_Init();
+
+  /* USER CODE BEGIN Init */
+
+  /* USER CODE END Init */
+
+  /* Configure the system clock */
+  SystemClock_Config();
+
+  /* USER CODE BEGIN SysInit */
+
+  /* USER CODE END SysInit */
+
+  /* Initialize all configured peripherals */
+  MX_GPIO_Init();
+
+  /* USER CODE BEGIN 2 */
+
+  /* USER CODE END 2 */
+
+  /* Init Azure RTOS */
+  MX_AURE_RTOS_Init();
+
+  /* Start scheduler */
+  tx_kernel_enter();
+
+  /* We should never get here as control is now taken by the scheduler */
+  /* Infinite loop */
+  /* USER CODE BEGIN WHILE */
+  while (1)
+  {
+    /* USER CODE END WHILE */
+
+    /* USER CODE BEGIN 3 */
+  }
+  /* USER CODE END 3 */
+}
+
+/* USER CODE BEGIN 4 */
+
+/* USER CODE END 4 */`;
+    } else if (filePath.includes('app_azure_rtos.c')) {
+      return `/* USER CODE BEGIN Header */
+/**
+  ******************************************************************************
+  * @file    app_azure_rtos.c
+  * @author  MCD Application Team
+  * @brief   Azure RTOS application
+  ******************************************************************************
+  */
+/* USER CODE END Header */
+
+/* Includes ------------------------------------------------------------------*/
+#include "app_azure_rtos.h"
+
+/* USER CODE BEGIN Includes */
+
+/* USER CODE END Includes */
+
+/* USER CODE BEGIN PTD */
+
+/* USER CODE END PTD */
+
+/* USER CODE BEGIN PD */
+
+/* USER CODE END PD */
+
+/* USER CODE BEGIN PV */
+
+/* USER CODE END PV */
+
+/* USER CODE BEGIN PFP */
+
+/* USER CODE END PFP */
+
+/**
+  * @brief  Initialize Azure RTOS.
+  * @param  None
+  * @retval None
+  */
+void MX_AURE_RTOS_Init(void)
+{
+  /* USER CODE BEGIN AURE_RTOS_Init */
+
+  /* USER CODE END AURE_RTOS_Init */
+}
+
+/* USER CODE BEGIN 1 */
+
+/* USER CODE END 1 */`;
+    }
+  }
+  
+  // Default template content
+  return `/* USER CODE BEGIN Header */
+/**
+  * @file    ${filePath.split('/').pop()?.replace('.j2', '')}
+  * @brief   Generated from template for {{ app_name }} on {{ board }}
+  */
+/* USER CODE END Header */
+
+/* USER CODE BEGIN Content */
+
+/* USER CODE END Content */`;
 };

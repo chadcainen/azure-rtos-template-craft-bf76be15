@@ -20,11 +20,22 @@ import {
   RotateCcw,
   Code,
   Copy,
-  FolderOpen
+  FolderOpen,
+  Settings,
+  Palette,
+  Zap
 } from 'lucide-react';
 import { STM32_COLORS } from '@/styles/stm32-theme';
 import { STM32TemplateParser, type UserCodeSection } from '@/utils/templateManager';
-import { parseProjectData, getBoardsForSeries, getMiddlewareForBoard, getApplicationsForMiddleware } from '@/utils/projectParser';
+import { 
+  getBoardsForSeries, 
+  getMiddlewareForBoard, 
+  getApplicationsForMiddleware,
+  getTemplateFiles,
+  getFileContent,
+  SERIES_TO_BOARDS,
+  BOARD_TO_MIDDLEWARE
+} from '@/utils/projectParser';
 
 interface TemplateManagerTabProps {
   projectData?: any;
@@ -55,9 +66,10 @@ const TemplateManagerTab: React.FC<TemplateManagerTabProps> = ({ projectData }) 
   // Initialize data from project
   useEffect(() => {
     if (projectData) {
-      const parsed = parseProjectData(projectData);
-      setAvailableSeries(parsed.series);
+      const series = Object.keys(SERIES_TO_BOARDS);
+      setAvailableSeries(series);
       loadDefaultTemplate();
+      (window as any).addConsoleLog?.('info', 'Template Manager initialized with project data');
     }
   }, [projectData]);
 
@@ -69,6 +81,10 @@ const TemplateManagerTab: React.FC<TemplateManagerTabProps> = ({ projectData }) 
       setSelectedBoard('');
       setSelectedMiddleware('');
       setSelectedApplication('');
+      setTemplates([]);
+      if (boards.length > 0) {
+        setSelectedBoard(boards[0]);
+      }
     }
   }, [selectedSeries, projectData]);
 
@@ -79,6 +95,10 @@ const TemplateManagerTab: React.FC<TemplateManagerTabProps> = ({ projectData }) 
       setAvailableMiddleware(middleware);
       setSelectedMiddleware('');
       setSelectedApplication('');
+      setTemplates([]);
+      if (middleware.length > 0) {
+        setSelectedMiddleware(middleware[0]);
+      }
     }
   }, [selectedBoard, projectData]);
 
@@ -88,9 +108,21 @@ const TemplateManagerTab: React.FC<TemplateManagerTabProps> = ({ projectData }) 
       const applications = getApplicationsForMiddleware(selectedBoard, selectedMiddleware, projectData);
       setAvailableApplications(applications);
       setSelectedApplication('');
-      loadTemplateFiles();
+      setTemplates([]);
+      if (applications.length > 0) {
+        setSelectedApplication(applications[0]);
+      }
     }
   }, [selectedBoard, selectedMiddleware, projectData]);
+
+  // Load template files when application changes
+  useEffect(() => {
+    if (selectedApplication && selectedMiddleware && projectData) {
+      const templateFiles = getTemplateFiles(selectedMiddleware, selectedApplication, projectData);
+      setTemplates(templateFiles);
+      (window as any).addConsoleLog?.('info', `Loaded ${templateFiles.length} template files for ${selectedApplication}`);
+    }
+  }, [selectedApplication, selectedMiddleware, projectData]);
 
   const loadDefaultTemplate = () => {
     const defaultTemplate = `/* USER CODE BEGIN Header */
@@ -158,25 +190,23 @@ void MX_AZURE_RTOS_Init(void)
     updatePreview();
   };
 
-  const loadTemplateFiles = () => {
-    // Mock template files - in real implementation, this would load from the project
-    const mockTemplates = [
-      'app_azure_rtos.c.j2',
-      'app_threadx.c.j2',
-      'main.c.j2',
-      'stm32_hal_msp.c.j2'
-    ];
-    setTemplates(mockTemplates);
-  };
-
-  const handleTemplateSelect = (templateName: string) => {
+  const handleTemplateSelect = async (templateName: string) => {
     setSelectedTemplate(templateName);
     setSelectedSection(null);
     setSectionContent('');
     
-    // Load template content (mock)
-    loadDefaultTemplate();
-    (window as any).addConsoleLog?.('info', `Template loaded: ${templateName}`);
+    try {
+      // Load template content from project
+      const content = await getFileContent(`apps/${selectedMiddleware}/${selectedApplication}/${templateName}`, projectData);
+      const parsedSections = parser.parseTemplate(content);
+      setSections(new Map(parsedSections));
+      setNonUserSections(parser.getNonUserSections());
+      updatePreview();
+      (window as any).addConsoleLog?.('info', `Template loaded: ${templateName}`);
+    } catch (error) {
+      (window as any).addConsoleLog?.('error', `Failed to load template: ${templateName}`);
+      console.error('Error loading template:', error);
+    }
   };
 
   const handleSectionSelect = (sectionId: string) => {
@@ -206,7 +236,6 @@ void MX_AZURE_RTOS_Init(void)
     if (selectedSection && selectedTemplate) {
       const section = sections.get(selectedSection);
       if (section && !section.readOnly) {
-        // Mark as saved
         section.modified = false;
         setSections(new Map(sections));
         (window as any).addConsoleLog?.('success', `Section ${selectedSection} saved successfully`);
@@ -309,259 +338,323 @@ void MX_AZURE_RTOS_Init(void)
   }
 
   return (
-    <div className="space-y-6">
-      {/* Configuration Panel */}
-      <Card>
-        <CardHeader>
-          <div className="flex items-center gap-2">
-            <FileText className="w-5 h-5" style={{ color: STM32_COLORS.warning }} />
-            <CardTitle>Template Configuration</CardTitle>
-            <Badge variant="outline" style={{ borderColor: STM32_COLORS.success, color: STM32_COLORS.success }}>
-              Project Loaded
-            </Badge>
-          </div>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div>
-              <label className="text-sm font-medium">Series</label>
-              <Select value={selectedSeries} onValueChange={setSelectedSeries}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select series" />
-                </SelectTrigger>
-                <SelectContent>
-                  {availableSeries.map((series) => (
-                    <SelectItem key={series} value={series}>
-                      STM32{series.toUpperCase()}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50">
+      {/* Enhanced Header */}
+      <div className="bg-gradient-to-r from-blue-900 via-blue-800 to-purple-900 shadow-xl">
+        <div className="max-w-7xl mx-auto px-6 py-8">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-4">
+              <div className="bg-white/20 backdrop-blur-sm rounded-2xl p-3">
+                <Palette className="w-8 h-8 text-white" />
+              </div>
+              <div>
+                <h1 className="text-3xl font-bold text-white">Template Manager</h1>
+                <p className="text-blue-200 mt-1">Professional STM32 Template Editor with Azure RTOS</p>
+              </div>
             </div>
-
-            <div>
-              <label className="text-sm font-medium">Board</label>
-              <Select value={selectedBoard} onValueChange={setSelectedBoard}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select board" />
-                </SelectTrigger>
-                <SelectContent>
-                  {availableBoards.map((board) => (
-                    <SelectItem key={board} value={board}>
-                      {board}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div>
-              <label className="text-sm font-medium">Middleware</label>
-              <Select value={selectedMiddleware} onValueChange={setSelectedMiddleware}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select middleware" />
-                </SelectTrigger>
-                <SelectContent>
-                  {availableMiddleware.map((middleware) => (
-                    <SelectItem key={middleware} value={middleware}>
-                      {middleware}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div>
-              <label className="text-sm font-medium">Application</label>
-              <Select value={selectedApplication} onValueChange={setSelectedApplication}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select application" />
-                </SelectTrigger>
-                <SelectContent>
-                  {availableApplications.map((app) => (
-                    <SelectItem key={app} value={app}>
-                      {app}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+            <div className="flex items-center space-x-2">
+              <Badge className="bg-green-500/20 text-green-100 border-green-400/30">
+                <Zap className="w-4 h-4 mr-1" />
+                Project Loaded
+              </Badge>
+              <Badge className="bg-blue-500/20 text-blue-100 border-blue-400/30">
+                {sections.size} Sections
+              </Badge>
             </div>
           </div>
-        </CardContent>
-      </Card>
-
-      {/* Main Template Editor */}
-      <div className="grid grid-cols-12 gap-6">
-        {/* Template Files Panel */}
-        <div className="col-span-3">
-          <Card className="h-[600px]">
-            <CardHeader>
-              <CardTitle className="text-sm">Template Files</CardTitle>
-              <div className="flex items-center gap-2">
-                <Search className="w-4 h-4 text-gray-400" />
-                <Input
-                  placeholder="Search templates..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="text-sm"
-                />
-              </div>
-            </CardHeader>
-            <CardContent className="p-0">
-              <ScrollArea className="h-[500px]">
-                <div className="p-4 space-y-2">
-                  {filteredTemplates.map((template) => (
-                    <div
-                      key={template}
-                      className={`flex items-center gap-2 p-2 rounded cursor-pointer hover:bg-gray-100 ${
-                        selectedTemplate === template ? 'bg-blue-50 border border-blue-200' : ''
-                      }`}
-                      onClick={() => handleTemplateSelect(template)}
-                    >
-                      <FileText className="w-4 h-4 text-gray-500" />
-                      <span className="text-sm">{template}</span>
-                    </div>
-                  ))}
-                </div>
-              </ScrollArea>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Sections Panel */}
-        <div className="col-span-3">
-          <Card className="h-[600px]">
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-sm">Template Sections</CardTitle>
-                <label className="flex items-center gap-2 text-xs">
-                  <input
-                    type="checkbox"
-                    checked={showOnlyUserCode}
-                    onChange={(e) => setShowOnlyUserCode(e.target.checked)}
-                  />
-                  User Code Only
-                </label>
-              </div>
-            </CardHeader>
-            <CardContent className="p-0">
-              <ScrollArea className="h-[500px]">
-                <div className="p-4">
-                  {Object.entries(getSectionsByType()).map(([category, sectionIds]) => {
-                    if (sectionIds.length === 0) return null;
-                    
-                    return (
-                      <div key={category} className="mb-4">
-                        <h4 className="text-xs font-semibold text-gray-600 mb-2">{category}</h4>
-                        <div className="space-y-1">
-                          {sectionIds.map((sectionId) => {
-                            const section = sections.get(sectionId) || nonUserSections.find(s => s.sectionId === sectionId);
-                            const isReadOnly = section?.readOnly || false;
-                            const isModified = section && !section.readOnly && section.modified;
-                            
-                            return (
-                              <div
-                                key={sectionId}
-                                className={`flex items-center justify-between p-2 rounded cursor-pointer text-xs ${
-                                  selectedSection === sectionId ? 'bg-blue-50 border border-blue-200' : 'hover:bg-gray-50'
-                                } ${isReadOnly ? 'bg-red-50' : 'bg-green-50'}`}
-                                onClick={() => handleSectionSelect(sectionId)}
-                              >
-                                <span className="truncate">{sectionId}</span>
-                                <div className="flex items-center gap-1">
-                                  {isModified && <div className="w-2 h-2 bg-yellow-500 rounded-full" />}
-                                  <Badge variant={isReadOnly ? "destructive" : "default"} className="text-xs">
-                                    {isReadOnly ? "RO" : "RW"}
-                                  </Badge>
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </ScrollArea>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Editor Panel */}
-        <div className="col-span-6">
-          <Card className="h-[600px]">
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-sm">
-                  {selectedSection ? `Editing: ${selectedSection}` : 'Code Editor'}
-                </CardTitle>
-                <div className="flex items-center gap-2">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={resetCurrentSection}
-                    disabled={!selectedSection}
-                  >
-                    <RotateCcw className="w-4 h-4" />
-                  </Button>
-                  <Button
-                    size="sm"
-                    onClick={saveCurrentSection}
-                    disabled={!selectedSection}
-                    style={{ backgroundColor: STM32_COLORS.primary }}
-                  >
-                    <Save className="w-4 h-4" />
-                  </Button>
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <Textarea
-                value={sectionContent}
-                onChange={(e) => handleSectionContentChange(e.target.value)}
-                placeholder={selectedSection ? "Edit your code here..." : "Select a section to edit"}
-                className="h-[400px] font-mono text-sm"
-                disabled={!selectedSection || sections.get(selectedSection || '')?.readOnly}
-              />
-              <div className="flex items-center justify-between mt-4">
-                <div className="text-xs text-gray-500">
-                  {selectedSection && sections.get(selectedSection)?.readOnly && "This section is read-only"}
-                </div>
-                <div className="flex gap-2">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={updatePreview}
-                  >
-                    <Code className="w-4 h-4 mr-1" />
-                    Update Preview
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={copyToClipboard}
-                  >
-                    <Copy className="w-4 h-4 mr-1" />
-                    Copy
-                  </Button>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
         </div>
       </div>
 
-      {/* Preview Panel */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Generated Code Preview</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <pre className="bg-gray-50 p-4 rounded text-sm overflow-auto max-h-96 font-mono">
-            {previewContent || 'No preview available. Select a template and generate code.'}
-          </pre>
-        </CardContent>
-      </Card>
+      <div className="max-w-7xl mx-auto px-6 py-8 space-y-8">
+        {/* Configuration Panel */}
+        <Card className="bg-white/70 backdrop-blur-sm border-0 shadow-xl">
+          <CardHeader className="bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-t-lg">
+            <div className="flex items-center gap-3">
+              <Settings className="w-6 h-6" />
+              <CardTitle className="text-xl">Project Configuration</CardTitle>
+            </div>
+          </CardHeader>
+          <CardContent className="p-6">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+              <div className="space-y-2">
+                <label className="text-sm font-semibold text-gray-700">Series</label>
+                <Select value={selectedSeries} onValueChange={setSelectedSeries}>
+                  <SelectTrigger className="h-12 border-2 border-blue-200 focus:border-blue-500">
+                    <SelectValue placeholder="Select series" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {availableSeries.map((series) => (
+                      <SelectItem key={series} value={series}>
+                        <span className="font-medium">STM32{series.toUpperCase()}</span>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-semibold text-gray-700">Board</label>
+                <Select value={selectedBoard} onValueChange={setSelectedBoard}>
+                  <SelectTrigger className="h-12 border-2 border-purple-200 focus:border-purple-500">
+                    <SelectValue placeholder="Select board" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {availableBoards.map((board) => (
+                      <SelectItem key={board} value={board}>
+                        {board}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-semibold text-gray-700">Middleware</label>
+                <Select value={selectedMiddleware} onValueChange={setSelectedMiddleware}>
+                  <SelectTrigger className="h-12 border-2 border-green-200 focus:border-green-500">
+                    <SelectValue placeholder="Select middleware" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {availableMiddleware.map((middleware) => (
+                      <SelectItem key={middleware} value={middleware}>
+                        {middleware}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-semibold text-gray-700">Application</label>
+                <Select value={selectedApplication} onValueChange={setSelectedApplication}>
+                  <SelectTrigger className="h-12 border-2 border-orange-200 focus:border-orange-500">
+                    <SelectValue placeholder="Select application" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {availableApplications.map((app) => (
+                      <SelectItem key={app} value={app}>
+                        {app}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Main Template Editor */}
+        <div className="grid grid-cols-12 gap-8">
+          {/* Template Files Panel */}
+          <div className="col-span-3">
+            <Card className="h-[700px] bg-white/70 backdrop-blur-sm border-0 shadow-xl">
+              <CardHeader className="bg-gradient-to-r from-green-600 to-teal-600 text-white rounded-t-lg">
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <FolderOpen className="w-5 h-5" />
+                  Template Files
+                </CardTitle>
+                <div className="flex items-center gap-2 mt-3">
+                  <Search className="w-4 h-4 text-green-100" />
+                  <Input
+                    placeholder="Search templates..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="bg-white/20 border-white/30 text-white placeholder:text-green-100"
+                  />
+                </div>
+              </CardHeader>
+              <CardContent className="p-0">
+                <ScrollArea className="h-[600px]">
+                  <div className="p-4 space-y-2">
+                    {filteredTemplates.map((template) => (
+                      <div
+                        key={template}
+                        className={`flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-all duration-200 ${
+                          selectedTemplate === template 
+                            ? 'bg-gradient-to-r from-blue-100 to-purple-100 border-2 border-blue-300 shadow-md' 
+                            : 'hover:bg-gray-50 hover:shadow-sm border border-gray-200'
+                        }`}
+                        onClick={() => handleTemplateSelect(template)}
+                      >
+                        <FileText className={`w-5 h-5 ${selectedTemplate === template ? 'text-blue-600' : 'text-gray-500'}`} />
+                        <div className="flex-1 min-w-0">
+                          <span className={`text-sm font-medium block truncate ${selectedTemplate === template ? 'text-blue-900' : 'text-gray-700'}`}>
+                            {template.split('/').pop()}
+                          </span>
+                          <span className="text-xs text-gray-500 block truncate">
+                            {template.split('/').slice(0, -1).join('/')}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </ScrollArea>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Sections Panel */}
+          <div className="col-span-3">
+            <Card className="h-[700px] bg-white/70 backdrop-blur-sm border-0 shadow-xl">
+              <CardHeader className="bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-t-lg">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <Code className="w-5 h-5" />
+                    Template Sections
+                  </CardTitle>
+                  <label className="flex items-center gap-2 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={showOnlyUserCode}
+                      onChange={(e) => setShowOnlyUserCode(e.target.checked)}
+                      className="rounded"
+                    />
+                    User Code Only
+                  </label>
+                </div>
+              </CardHeader>
+              <CardContent className="p-0">
+                <ScrollArea className="h-[600px]">
+                  <div className="p-4">
+                    {Object.entries(getSectionsByType()).map(([category, sectionIds]) => {
+                      if (sectionIds.length === 0) return null;
+                      
+                      return (
+                        <div key={category} className="mb-6">
+                          <h4 className="text-sm font-bold text-gray-700 mb-3 flex items-center gap-2">
+                            <div className={`w-3 h-3 rounded-full ${
+                              category === 'Header' ? 'bg-blue-500' :
+                              category === 'Includes' ? 'bg-green-500' :
+                              category === 'Private Definitions' ? 'bg-yellow-500' :
+                              category === 'Private Variables' ? 'bg-purple-500' :
+                              category === 'Application Code' ? 'bg-red-500' :
+                              'bg-gray-500'
+                            }`} />
+                            {category}
+                          </h4>
+                          <div className="space-y-2">
+                            {sectionIds.map((sectionId) => {
+                              const section = sections.get(sectionId) || nonUserSections.find(s => s.sectionId === sectionId);
+                              const isReadOnly = section?.readOnly || false;
+                              const isModified = section && !section.readOnly && section.modified;
+                              
+                              return (
+                                <div
+                                  key={sectionId}
+                                  className={`flex items-center justify-between p-3 rounded-lg cursor-pointer transition-all duration-200 ${
+                                    selectedSection === sectionId 
+                                      ? 'bg-gradient-to-r from-blue-100 to-purple-100 border-2 border-blue-300' 
+                                      : 'hover:bg-gray-50 border border-gray-200'
+                                  } ${isReadOnly ? 'bg-red-50 border-red-200' : 'bg-green-50 border-green-200'}`}
+                                  onClick={() => handleSectionSelect(sectionId)}
+                                >
+                                  <span className="text-sm font-medium truncate flex-1">{sectionId}</span>
+                                  <div className="flex items-center gap-2">
+                                    {isModified && <div className="w-2 h-2 bg-amber-500 rounded-full" />}
+                                    <Badge 
+                                      variant={isReadOnly ? "destructive" : "default"} 
+                                      className="text-xs px-2 py-1"
+                                    >
+                                      {isReadOnly ? "RO" : "RW"}
+                                    </Badge>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </ScrollArea>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Editor Panel */}
+          <div className="col-span-6">
+            <Card className="h-[700px] bg-white/70 backdrop-blur-sm border-0 shadow-xl">
+              <CardHeader className="bg-gradient-to-r from-orange-600 to-red-600 text-white rounded-t-lg">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-lg">
+                    {selectedSection ? `Editing: ${selectedSection}` : 'Code Editor'}
+                  </CardTitle>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={resetCurrentSection}
+                      disabled={!selectedSection}
+                      className="bg-white/20 border-white/30 text-white hover:bg-white/30"
+                    >
+                      <RotateCcw className="w-4 h-4" />
+                    </Button>
+                    <Button
+                      size="sm"
+                      onClick={saveCurrentSection}
+                      disabled={!selectedSection}
+                      className="bg-white text-orange-600 hover:bg-white/90"
+                    >
+                      <Save className="w-4 h-4" />
+                    </Button>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent className="p-6">
+                <Textarea
+                  value={sectionContent}
+                  onChange={(e) => handleSectionContentChange(e.target.value)}
+                  placeholder={selectedSection ? "Edit your code here..." : "Select a section to edit"}
+                  className="h-[480px] font-mono text-sm bg-gray-50 border-2 border-gray-200 focus:border-orange-500"
+                  disabled={!selectedSection || sections.get(selectedSection || '')?.readOnly}
+                />
+                <div className="flex items-center justify-between mt-4">
+                  <div className="text-sm text-gray-500">
+                    {selectedSection && sections.get(selectedSection)?.readOnly && (
+                      <span className="text-red-600 font-medium">This section is read-only</span>
+                    )}
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={updatePreview}
+                      className="flex items-center gap-2"
+                    >
+                      <Eye className="w-4 h-4" />
+                      Update Preview
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={copyToClipboard}
+                      className="flex items-center gap-2"
+                    >
+                      <Copy className="w-4 h-4" />
+                      Copy All
+                    </Button>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+
+        {/* Preview Panel */}
+        <Card className="bg-white/70 backdrop-blur-sm border-0 shadow-xl">
+          <CardHeader className="bg-gradient-to-r from-teal-600 to-blue-600 text-white rounded-t-lg">
+            <CardTitle className="text-xl flex items-center gap-2">
+              <Eye className="w-6 h-6" />
+              Generated Code Preview
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-6">
+            <pre className="bg-gray-900 text-green-400 p-6 rounded-lg text-sm overflow-auto max-h-96 font-mono border-2 border-gray-700">
+              {previewContent || 'No preview available. Select a template and generate code.'}
+            </pre>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 };
