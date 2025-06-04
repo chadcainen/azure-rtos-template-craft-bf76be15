@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
@@ -27,9 +26,10 @@ import ConsoleOutput from './ConsoleOutput';
 
 interface MainInterfaceProps {
   onBackToWelcome: () => void;
+  projectData?: any;
 }
 
-const MainInterface: React.FC<MainInterfaceProps> = ({ onBackToWelcome }) => {
+const MainInterface: React.FC<MainInterfaceProps> = ({ onBackToWelcome, projectData }) => {
   const [activeTab, setActiveTab] = useState('generate-mx');
   const [sidebarOpen, setSidebarOpen] = useState(true);
 
@@ -90,6 +90,11 @@ const MainInterface: React.FC<MainInterfaceProps> = ({ onBackToWelcome }) => {
                 <div>
                   <h2 className="text-white font-bold text-sm">STM32Cube Builder</h2>
                   <p className="text-blue-200 text-xs">Azure RTOS</p>
+                  {projectData && (
+                    <Badge variant="secondary" className="bg-green-500/20 text-green-200 text-xs mt-1">
+                      Project Loaded
+                    </Badge>
+                  )}
                 </div>
               </div>
             )}
@@ -159,10 +164,21 @@ const MainInterface: React.FC<MainInterfaceProps> = ({ onBackToWelcome }) => {
               </h1>
               <p className="text-sm" style={{ color: STM32_COLORS.textSecondary }}>
                 STM32 Development Tool for Azure RTOS
+                {projectData && (
+                  <span className="ml-2 text-green-600">
+                    • Project: PACK_AZRTOS_AutoGen
+                  </span>
+                )}
               </p>
             </div>
-            <Badge variant="outline" style={{ borderColor: STM32_COLORS.primary, color: STM32_COLORS.primary }}>
-              Ready
+            <Badge 
+              variant="outline" 
+              style={{ 
+                borderColor: projectData ? STM32_COLORS.success : STM32_COLORS.primary, 
+                color: projectData ? STM32_COLORS.success : STM32_COLORS.primary 
+              }}
+            >
+              {projectData ? 'Ready' : 'No Project'}
             </Badge>
           </div>
         </div>
@@ -177,7 +193,7 @@ const MainInterface: React.FC<MainInterfaceProps> = ({ onBackToWelcome }) => {
                   key={tab.id}
                   className={activeTab === tab.id ? 'block' : 'hidden'}
                 >
-                  <Component />
+                  <Component projectData={projectData} />
                 </div>
               );
             })}

@@ -1,29 +1,51 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Settings, File, Edit, Eye, Trash2, Plus, Search } from 'lucide-react';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Settings, File, Edit, Eye, Trash2, Plus, Search, AlertTriangle } from 'lucide-react';
 import { STM32_COLORS } from '@/styles/stm32-theme';
 
-const ConfigurationManagerTab: React.FC = () => {
+interface ConfigurationManagerTabProps {
+  projectData?: any;
+}
+
+const ConfigurationManagerTab: React.FC<ConfigurationManagerTabProps> = ({ projectData }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
+  const [configFiles, setConfigFiles] = useState<any[]>([]);
 
-  const configFiles = [
-    { name: 'STM32F429ZI-Nucleo.json', type: 'Board', size: '12.3 KB', modified: '2024-01-15' },
-    { name: 'STM32F767ZI-Nucleo.json', type: 'Board', size: '14.1 KB', modified: '2024-01-14' },
-    { name: 'STM32H743I-EVAL.json', type: 'Board', size: '16.7 KB', modified: '2024-01-13' },
-    { name: 'ThreadX.json', type: 'Middleware', size: '8.9 KB', modified: '2024-01-12' },
-    { name: 'FileX.json', type: 'Middleware', size: '7.2 KB', modified: '2024-01-12' },
-    { name: 'NetXDuo.json', type: 'Middleware', size: '11.5 KB', modified: '2024-01-11' },
-    { name: 'USBX.json', type: 'Middleware', size: '9.8 KB', modified: '2024-01-11' },
-    { name: 'f4.json', type: 'Series', size: '5.6 KB', modified: '2024-01-10' },
-    { name: 'f7.json', type: 'Series', size: '6.1 KB', modified: '2024-01-10' },
-    { name: 'h7.json', type: 'Series', size: '7.3 KB', modified: '2024-01-09' },
-  ];
+  useEffect(() => {
+    if (projectData?.apps?.json) {
+      const jsonFiles = projectData.apps.json.map((file: any) => ({
+        name: file.name,
+        path: file.path,
+        type: getFileType(file.name),
+        size: formatFileSize(file.file?.size || 0),
+        modified: new Date().toISOString().split('T')[0], // Mock date
+        file: file.file
+      }));
+      setConfigFiles(jsonFiles);
+    }
+  }, [projectData]);
+
+  const getFileType = (fileName: string) => {
+    if (fileName.includes('STM32') && fileName.includes('Nucleo')) return 'Board';
+    if (fileName.includes('STM32') && (fileName.includes('EVAL') || fileName.includes('Discovery'))) return 'Board';
+    if (['f4.json', 'f7.json', 'h7.json', 'l4.json', 'g4.json'].includes(fileName)) return 'Series';
+    return 'Middleware';
+  };
+
+  const formatFileSize = (bytes: number) => {
+    if (bytes === 0) return '0 B';
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+  };
 
   const filteredFiles = configFiles.filter(file =>
     file.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -31,7 +53,11 @@ const ConfigurationManagerTab: React.FC = () => {
   );
 
   const handleFileAction = (action: string, fileName: string) => {
-    (window as any).addConsoleLog?.('info', `${action} file: ${fileName}`);
+    (window as any).addConsoleLog?.('info', `${action} file: ${fileName} from project`);
+    
+    if (action === 'View') {
+      setSelectedFile(fileName);
+    }
   };
 
   const getTypeColor = (type: string) => {
@@ -47,12 +73,28 @@ const ConfigurationManagerTab: React.FC = () => {
     }
   };
 
+  if (!projectData) {
+    return (
+      <div className="space-y-6">
+        <Alert>
+          <AlertTriangle className="h-4 w-4" />
+          <AlertDescription>
+            Please upload the PACK_AZRTOS_AutoGen project first to manage configuration files.
+          </AlertDescription>
+        </Alert>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Settings className="w-5 h-5" style={{ color: STM32_COLORS.warning }} />
           <h2 className="text-lg font-semibold">Configuration Manager</h2>
+          <Badge variant="outline" style={{ borderColor: STM32_COLORS.success, color: STM32_COLORS.success }}>
+            {configFiles.length} JSON files loaded
+          </Badge>
         </div>
         <Button className="flex items-center gap-2" style={{ backgroundColor: STM32_COLORS.primary }}>
           <Plus className="w-4 h-4" />
@@ -63,7 +105,7 @@ const ConfigurationManagerTab: React.FC = () => {
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
-            <CardTitle>JSON Configuration Files</CardTitle>
+            <CardTitle>Project JSON Configuration Files</CardTitle>
             <div className="flex items-center gap-2">
               <Search className="w-4 h-4 text-gray-400" />
               <Input
@@ -91,7 +133,7 @@ const ConfigurationManagerTab: React.FC = () => {
                     <div>
                       <div className="font-medium">{file.name}</div>
                       <div className="text-sm text-gray-500">
-                        {file.size} • Modified {file.modified}
+                        {file.size} • Path: {file.path}
                       </div>
                     </div>
                   </div>
@@ -172,7 +214,8 @@ const ConfigurationManagerTab: React.FC = () => {
         "priority_max": 32
       }
     }
-  }
+  },
+  "path": "Loaded from project: ${configFiles.find(f => f.name === selectedFile)?.path || ''}"
 }`}</pre>
             </div>
           </CardContent>
