@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -33,8 +32,7 @@ import {
   getApplicationsForMiddleware,
   getTemplateFiles,
   getFileContent,
-  SERIES_TO_BOARDS,
-  BOARD_TO_MIDDLEWARE
+  parseProjectData
 } from '@/utils/projectParser';
 
 interface TemplateManagerTabProps {
@@ -66,8 +64,8 @@ const TemplateManagerTab: React.FC<TemplateManagerTabProps> = ({ projectData }) 
   // Initialize data from project
   useEffect(() => {
     if (projectData) {
-      const series = Object.keys(SERIES_TO_BOARDS);
-      setAvailableSeries(series);
+      const parsedData = parseProjectData(projectData);
+      setAvailableSeries(parsedData.series);
       loadDefaultTemplate();
       (window as any).addConsoleLog?.('info', 'Template Manager initialized with project data');
     }

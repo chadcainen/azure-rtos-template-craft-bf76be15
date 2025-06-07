@@ -11,6 +11,13 @@ interface ProjectUploadProps {
   onProjectLoaded: (projectStructure: any) => void;
 }
 
+interface FileInfo {
+  name: string;
+  path: string;
+  file: File;
+  content?: string;
+}
+
 const ProjectUpload: React.FC<ProjectUploadProps> = ({ onProjectLoaded }) => {
   const [isDragging, setIsDragging] = useState(false);
   const [uploadStatus, setUploadStatus] = useState<'idle' | 'processing' | 'success' | 'error'>('idle');
@@ -68,7 +75,7 @@ const ProjectUpload: React.FC<ProjectUploadProps> = ({ onProjectLoaded }) => {
 
     const filePromises = Array.from(files).map(async (file) => {
       const path = file.webkitRelativePath || file.name;
-      const fileInfo = { name: file.name, path: path, file: file };
+      const fileInfo: FileInfo = { name: file.name, path: path, file: file };
       
       // Read JSON files content immediately
       if (file.name.endsWith('.json')) {
