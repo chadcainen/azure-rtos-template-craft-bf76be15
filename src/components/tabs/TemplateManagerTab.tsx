@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -9,10 +10,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea';
 import { 
   FileText, 
-  Plus, 
   Edit, 
   Eye, 
-  Trash2, 
   Search, 
   AlertTriangle, 
   Save, 
@@ -66,7 +65,6 @@ const TemplateManagerTab: React.FC<TemplateManagerTabProps> = ({ projectData }) 
     if (projectData) {
       const parsedData = parseProjectData(projectData);
       setAvailableSeries(parsedData.series);
-      loadDefaultTemplate();
       (window as any).addConsoleLog?.('info', 'Template Manager initialized with project data');
     }
   }, [projectData]);
@@ -121,6 +119,31 @@ const TemplateManagerTab: React.FC<TemplateManagerTabProps> = ({ projectData }) 
       (window as any).addConsoleLog?.('info', `Loaded ${templateFiles.length} template files for ${selectedApplication}`);
     }
   }, [selectedApplication, selectedMiddleware, projectData]);
+
+  const handleTemplateSelect = async (templateName: string) => {
+    setSelectedTemplate(templateName);
+    setSelectedSection(null);
+    setSectionContent('');
+    
+    try {
+      // Load template content from project
+      const content = await getFileContent(templateName, projectData);
+      if (content) {
+        const parsedSections = parser.parseTemplate(content);
+        setSections(new Map(parsedSections));
+        setNonUserSections(parser.getNonUserSections());
+        updatePreview();
+        (window as any).addConsoleLog?.('info', `Template loaded: ${templateName}`);
+      } else {
+        // Load default template if file not found
+        loadDefaultTemplate();
+      }
+    } catch (error) {
+      (window as any).addConsoleLog?.('error', `Failed to load template: ${templateName}`);
+      console.error('Error loading template:', error);
+      loadDefaultTemplate();
+    }
+  };
 
   const loadDefaultTemplate = () => {
     const defaultTemplate = `/* USER CODE BEGIN Header */
@@ -184,27 +207,7 @@ void MX_AZURE_RTOS_Init(void)
     const parsedSections = parser.parseTemplate(defaultTemplate);
     setSections(new Map(parsedSections));
     setNonUserSections(parser.getNonUserSections());
-    setSelectedTemplate('default_template.j2');
     updatePreview();
-  };
-
-  const handleTemplateSelect = async (templateName: string) => {
-    setSelectedTemplate(templateName);
-    setSelectedSection(null);
-    setSectionContent('');
-    
-    try {
-      // Load template content from project
-      const content = await getFileContent(`apps/${selectedMiddleware}/${selectedApplication}/${templateName}`, projectData);
-      const parsedSections = parser.parseTemplate(content);
-      setSections(new Map(parsedSections));
-      setNonUserSections(parser.getNonUserSections());
-      updatePreview();
-      (window as any).addConsoleLog?.('info', `Template loaded: ${templateName}`);
-    } catch (error) {
-      (window as any).addConsoleLog?.('error', `Failed to load template: ${templateName}`);
-      console.error('Error loading template:', error);
-    }
   };
 
   const handleSectionSelect = (sectionId: string) => {
@@ -464,7 +467,7 @@ void MX_AZURE_RTOS_Init(void)
               <CardContent className="p-0">
                 <ScrollArea className="h-[600px]">
                   <div className="p-4 space-y-2">
-                    {filteredTemplates.map((template) => (
+                    {filteredTemplates.length > 0 ? filteredTemplates.map((template) => (
                       <div
                         key={template}
                         className={`flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-all duration-200 ${
@@ -484,7 +487,14 @@ void MX_AZURE_RTOS_Init(void)
                           </span>
                         </div>
                       </div>
-                    ))}
+                    )) : (
+                      <div className="text-center py-8">
+                        <FileText className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                        <p className="text-gray-500 text-sm">
+                          {selectedApplication ? 'No templates found' : 'Select an application to see templates'}
+                        </p>
+                      </div>
+                    )}
                   </div>
                 </ScrollArea>
               </CardContent>

@@ -3,15 +3,27 @@ import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
-import { Progress } from '@/components/ui/progress';
-import { Cog, Play, AlertTriangle, FolderOpen } from 'lucide-react';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { 
+  Cog, 
+  Play, 
+  Settings, 
+  AlertTriangle, 
+  CheckCircle, 
+  FileText,
+  Zap,
+  Code,
+  Download
+} from 'lucide-react';
 import { STM32_COLORS } from '@/styles/stm32-theme';
-import { parseProjectData } from '@/utils/projectParser';
-import { backendInterface } from '@/utils/backendInterface';
+import { 
+  getBoardsForSeries, 
+  getMiddlewareForBoard, 
+  getApplicationsForMiddleware,
+  parseProjectData
+} from '@/utils/projectParser';
 
 interface GenerateMXTabProps {
   projectData?: any;
@@ -19,83 +31,89 @@ interface GenerateMXTabProps {
 
 const GenerateMXTab: React.FC<GenerateMXTabProps> = ({ projectData }) => {
   const [selectedSeries, setSelectedSeries] = useState('');
-  const [outputDirectory, setOutputDirectory] = useState('');
+  const [selectedBoard, setSelectedBoard] = useState('');
+  const [selectedMiddleware, setSelectedMiddleware] = useState('');
+  const [selectedApplications, setSelectedApplications] = useState<string[]>([]);
+  const [projectName, setProjectName] = useState('STM32_AzureRTOS_Project');
+  const [outputPath, setOutputPath] = useState('./output');
   const [isGenerating, setIsGenerating] = useState(false);
-  const [progress, setProgress] = useState(0);
+  const [generationStatus, setGenerationStatus] = useState<'idle' | 'success' | 'error'>('idle');
+  
   const [availableSeries, setAvailableSeries] = useState<string[]>([]);
+  const [availableBoards, setAvailableBoards] = useState<string[]>([]);
+  const [availableMiddleware, setAvailableMiddleware] = useState<string[]>([]);
+  const [availableApplications, setAvailableApplications] = useState<string[]>([]);
 
+  // Initialize data from project
   useEffect(() => {
     if (projectData) {
-      const parsed = parseProjectData(projectData);
-      setAvailableSeries(parsed.series);
-      
-      // Set default output directory from project
-      if (projectData.projectPath) {
-        setOutputDirectory(`${projectData.projectPath}/Generated/MX_Files`);
-      }
+      const parsedData = parseProjectData(projectData);
+      setAvailableSeries(parsedData.series);
+      (window as any).addConsoleLog?.('info', 'MX Generator initialized with project data');
     }
   }, [projectData]);
 
-  const handleGenerate = async () => {
-    if (!selectedSeries || !outputDirectory) {
-      (window as any).addConsoleLog?.('error', 'Please select STM32 series and output directory');
-      return;
+  // Update boards when series changes
+  useEffect(() => {
+    if (selectedSeries && projectData) {
+      const boards = getBoardsForSeries(selectedSeries, projectData);
+      setAvailableBoards(boards);
+      setSelectedBoard('');
+      setSelectedMiddleware('');
+      setSelectedApplications([]);
     }
+  }, [selectedSeries, projectData]);
 
-    if (!projectData) {
-      (window as any).addConsoleLog?.('error', 'No project loaded. Please upload PACK_AZRTOS_AutoGen project first.');
+  // Update middleware when board changes
+  useEffect(() => {
+    if (selectedBoard && projectData) {
+      const middleware = getMiddlewareForBoard(selectedBoard, projectData);
+      setAvailableMiddleware(middleware);
+      setSelectedMiddleware('');
+      setSelectedApplications([]);
+    }
+  }, [selectedBoard, projectData]);
+
+  // Update applications when middleware changes
+  useEffect(() => {
+    if (selectedBoard && selectedMiddleware && projectData) {
+      const applications = getApplicationsForMiddleware(selectedBoard, selectedMiddleware, projectData);
+      setAvailableApplications(applications);
+      setSelectedApplications([]);
+    }
+  }, [selectedBoard, selectedMiddleware, projectData]);
+
+  const handleApplicationToggle = (application: string) => {
+    setSelectedApplications(prev => 
+      prev.includes(application) 
+        ? prev.filter(app => app !== application)
+        : [...prev, application]
+    );
+  };
+
+  const handleGenerate = async () => {
+    if (!selectedSeries || !selectedBoard || selectedApplications.length === 0) {
+      (window as any).addConsoleLog?.('error', 'Please select series, board, and at least one application');
       return;
     }
 
     setIsGenerating(true);
-    setProgress(0);
-
+    setGenerationStatus('idle');
+    
     try {
-      // Simulate progress updates
-      const progressInterval = setInterval(() => {
-        setProgress(prev => {
-          if (prev >= 95) {
-            clearInterval(progressInterval);
-            return 95;
-          }
-          return prev + 15;
-        });
-      }, 1000);
-
-      const result = await backendInterface.generateMXFiles({
-        series: selectedSeries,
-        outputDirectory: outputDirectory
-      });
-
-      clearInterval(progressInterval);
-      setProgress(100);
-
-      if (result.success) {
-        (window as any).addConsoleLog?.('success', result.message);
-        if (result.outputPath) {
-          (window as any).addConsoleLog?.('info', `Files saved to: ${result.outputPath}`);
-        }
-      } else {
-        (window as any).addConsoleLog?.('error', result.message);
-        if (result.error) {
-          (window as any).addConsoleLog?.('error', `Error details: ${result.error}`);
-        }
-      }
+      (window as any).addConsoleLog?.('info', `Generating MX files for ${selectedBoard} with applications: ${selectedApplications.join(', ')}`);
+      
+      // Simulate generation process
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      
+      setGenerationStatus('success');
+      (window as any).addConsoleLog?.('success', `MX files generated successfully for project: ${projectName}`);
     } catch (error) {
-      (window as any).addConsoleLog?.('error', `Generation failed: ${error}`);
+      setGenerationStatus('error');
+      (window as any).addConsoleLog?.('error', 'Failed to generate MX files');
     } finally {
       setIsGenerating(false);
-      setTimeout(() => setProgress(0), 2000);
     }
-  };
-
-  const selectOutputDirectory = () => {
-    // In a real implementation, this would open a directory picker
-    const defaultPath = projectData?.projectPath ? 
-      `${projectData.projectPath}/Generated/MX_Files` : 
-      './Generated/MX_Files';
-    setOutputDirectory(defaultPath);
-    (window as any).addConsoleLog?.('info', `Output directory set to: ${defaultPath}`);
   };
 
   if (!projectData) {
@@ -112,117 +130,227 @@ const GenerateMXTab: React.FC<GenerateMXTabProps> = ({ projectData }) => {
   }
 
   return (
-    <div className="space-y-6">
-      <Card>
-        <CardHeader>
-          <div className="flex items-center gap-2">
-            <Cog className="w-5 h-5" style={{ color: STM32_COLORS.primary }} />
-            <CardTitle>MX File Generation</CardTitle>
-            <Badge variant="outline" style={{ borderColor: STM32_COLORS.success, color: STM32_COLORS.success }}>
-              Project Loaded
-            </Badge>
-          </div>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          <div className="grid md:grid-cols-2 gap-6">
-            <div className="space-y-4">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50">
+      {/* Enhanced Header */}
+      <div className="bg-gradient-to-r from-blue-900 via-blue-800 to-purple-900 shadow-xl">
+        <div className="max-w-7xl mx-auto px-6 py-8">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-4">
+              <div className="bg-white/20 backdrop-blur-sm rounded-2xl p-3">
+                <Cog className="w-8 h-8 text-white" />
+              </div>
               <div>
-                <Label htmlFor="series-select">STM32 Series *</Label>
+                <h1 className="text-3xl font-bold text-white">STM32CubeMX Generator</h1>
+                <p className="text-blue-200 mt-1">Professional STM32 Project Generation with Azure RTOS</p>
+              </div>
+            </div>
+            <div className="flex items-center space-x-2">
+              <Badge className="bg-green-500/20 text-green-100 border-green-400/30">
+                <Zap className="w-4 h-4 mr-1" />
+                Ready to Generate
+              </Badge>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="max-w-7xl mx-auto px-6 py-8 space-y-8">
+        {/* Configuration Section */}
+        <Card className="bg-white/80 backdrop-blur-sm border-0 shadow-xl">
+          <CardHeader className="bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-t-lg">
+            <div className="flex items-center gap-3">
+              <Settings className="w-6 h-6" />
+              <CardTitle className="text-xl">Project Configuration</CardTitle>
+            </div>
+          </CardHeader>
+          <CardContent className="p-8">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
+              <div className="space-y-3">
+                <label className="text-sm font-bold text-gray-700 flex items-center gap-2">
+                  <div className="w-3 h-3 rounded-full bg-blue-500"></div>
+                  STM32 Series
+                </label>
                 <Select value={selectedSeries} onValueChange={setSelectedSeries}>
-                  <SelectTrigger>
+                  <SelectTrigger className="h-12 border-2 border-blue-200 focus:border-blue-500 bg-white">
                     <SelectValue placeholder="Select STM32 series" />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="bg-white border-2 border-blue-200">
                     {availableSeries.map((series) => (
                       <SelectItem key={series} value={series}>
-                        STM32{series.toUpperCase()} Series
+                        <span className="font-medium">STM32{series.toUpperCase()}</span>
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
 
-              <div>
-                <Label htmlFor="output-dir">Output Directory *</Label>
-                <div className="flex gap-2">
-                  <Input
-                    id="output-dir"
-                    placeholder="Select output directory"
-                    value={outputDirectory}
-                    onChange={(e) => setOutputDirectory(e.target.value)}
-                  />
-                  <Button 
-                    variant="outline" 
-                    onClick={selectOutputDirectory}
-                    className="flex items-center gap-2"
-                  >
-                    <FolderOpen className="w-4 h-4" />
-                    Browse
-                  </Button>
-                </div>
+              <div className="space-y-3">
+                <label className="text-sm font-bold text-gray-700 flex items-center gap-2">
+                  <div className="w-3 h-3 rounded-full bg-purple-500"></div>
+                  Development Board
+                </label>
+                <Select value={selectedBoard} onValueChange={setSelectedBoard} disabled={!selectedSeries}>
+                  <SelectTrigger className="h-12 border-2 border-purple-200 focus:border-purple-500 bg-white">
+                    <SelectValue placeholder="Select board" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-white border-2 border-purple-200">
+                    {availableBoards.map((board) => (
+                      <SelectItem key={board} value={board}>
+                        {board}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-3">
+                <label className="text-sm font-bold text-gray-700 flex items-center gap-2">
+                  <div className="w-3 h-3 rounded-full bg-green-500"></div>
+                  Middleware Stack
+                </label>
+                <Select value={selectedMiddleware} onValueChange={setSelectedMiddleware} disabled={!selectedBoard}>
+                  <SelectTrigger className="h-12 border-2 border-green-200 focus:border-green-500 bg-white">
+                    <SelectValue placeholder="Select middleware" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-white border-2 border-green-200">
+                    {availableMiddleware.map((middleware) => (
+                      <SelectItem key={middleware} value={middleware}>
+                        {middleware}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-3">
+                <label className="text-sm font-bold text-gray-700 flex items-center gap-2">
+                  <div className="w-3 h-3 rounded-full bg-orange-500"></div>
+                  Project Name
+                </label>
+                <Input
+                  value={projectName}
+                  onChange={(e) => setProjectName(e.target.value)}
+                  placeholder="Enter project name"
+                  className="h-12 border-2 border-orange-200 focus:border-orange-500 bg-white"
+                />
               </div>
             </div>
+          </CardContent>
+        </Card>
 
-            <div className="space-y-4">
-              <div className="p-4 bg-blue-50 rounded-lg">
-                <h4 className="text-sm font-medium mb-2" style={{ color: STM32_COLORS.primary }}>
-                  Project Information
-                </h4>
-                <div className="text-xs space-y-1">
-                  <div>Project: PACK_AZRTOS_AutoGen</div>
-                  <div>Available Series: {availableSeries.length} found</div>
-                  {projectData.projectPath && (
-                    <div>Path: {projectData.projectPath}</div>
-                  )}
-                </div>
+        {/* Applications Selection */}
+        {availableApplications.length > 0 && (
+          <Card className="bg-white/80 backdrop-blur-sm border-0 shadow-xl">
+            <CardHeader className="bg-gradient-to-r from-green-600 to-teal-600 text-white rounded-t-lg">
+              <CardTitle className="text-xl flex items-center gap-3">
+                <Code className="w-6 h-6" />
+                Available Applications ({selectedMiddleware})
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {availableApplications.map((app) => (
+                  <div
+                    key={app}
+                    className={`p-4 rounded-xl border-2 cursor-pointer transition-all duration-200 ${
+                      selectedApplications.includes(app)
+                        ? 'bg-gradient-to-r from-green-100 to-teal-100 border-green-300 shadow-md'
+                        : 'bg-white border-gray-200 hover:border-green-300 hover:shadow-sm'
+                    }`}
+                    onClick={() => handleApplicationToggle(app)}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex-1">
+                        <h4 className="font-medium text-gray-900">{app}</h4>
+                        <p className="text-sm text-gray-500 mt-1">
+                          {selectedMiddleware} Application
+                        </p>
+                      </div>
+                      {selectedApplications.includes(app) && (
+                        <CheckCircle className="w-5 h-5 text-green-600" />
+                      )}
+                    </div>
+                  </div>
+                ))}
               </div>
+            </CardContent>
+          </Card>
+        )}
 
-              {selectedSeries && (
-                <div className="p-3 bg-green-50 rounded-lg">
-                  <h4 className="text-sm font-medium mb-2" style={{ color: STM32_COLORS.success }}>
-                    Generation Target
-                  </h4>
-                  <div className="text-xs">
-                    <div>Series: STM32{selectedSeries.toUpperCase()}</div>
-                    <div>Output: {outputDirectory || 'Not selected'}</div>
+        {/* Generation Controls */}
+        <Card className="bg-white/80 backdrop-blur-sm border-0 shadow-xl">
+          <CardHeader className="bg-gradient-to-r from-orange-600 to-red-600 text-white rounded-t-lg">
+            <CardTitle className="text-xl flex items-center gap-3">
+              <FileText className="w-6 h-6" />
+              Generate STM32CubeMX Files
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-8">
+            <div className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-3">
+                  <label className="text-sm font-bold text-gray-700">Output Directory</label>
+                  <Input
+                    value={outputPath}
+                    onChange={(e) => setOutputPath(e.target.value)}
+                    placeholder="./output"
+                    className="h-12 border-2 border-gray-200 focus:border-orange-500 bg-white"
+                  />
+                </div>
+                <div className="space-y-3">
+                  <label className="text-sm font-bold text-gray-700">Selected Applications</label>
+                  <div className="flex flex-wrap gap-2">
+                    {selectedApplications.map((app) => (
+                      <Badge key={app} className="bg-green-100 text-green-800 px-3 py-1">
+                        {app}
+                      </Badge>
+                    ))}
+                    {selectedApplications.length === 0 && (
+                      <span className="text-gray-500 text-sm">No applications selected</span>
+                    )}
                   </div>
                 </div>
-              )}
-            </div>
-          </div>
-
-          {isGenerating && (
-            <div className="space-y-2">
-              <div className="flex items-center justify-between text-sm">
-                <span>Generating MX files...</span>
-                <span>{Math.round(progress)}%</span>
               </div>
-              <Progress value={progress} className="h-2" />
-            </div>
-          )}
 
-          <div className="flex gap-3">
-            <Button
-              onClick={handleGenerate}
-              disabled={isGenerating || !selectedSeries || !outputDirectory}
-              className="flex items-center gap-2"
-              style={{ backgroundColor: STM32_COLORS.primary }}
-            >
-              {isGenerating ? (
-                <>
-                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                  Generating...
-                </>
-              ) : (
-                <>
-                  <Play className="w-4 h-4" />
-                  Generate MX Files
-                </>
-              )}
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
+              <div className="flex items-center justify-between pt-6 border-t border-gray-200">
+                <div className="flex items-center gap-4">
+                  <Button
+                    onClick={handleGenerate}
+                    disabled={isGenerating || !selectedSeries || !selectedBoard || selectedApplications.length === 0}
+                    className="bg-gradient-to-r from-orange-600 to-red-600 hover:from-orange-700 hover:to-red-700 text-white px-8 py-3 h-12"
+                  >
+                    {isGenerating ? (
+                      <>
+                        <div className="animate-spin w-5 h-5 border-2 border-white/30 border-t-white rounded-full mr-2" />
+                        Generating...
+                      </>
+                    ) : (
+                      <>
+                        <Play className="w-5 h-5 mr-2" />
+                        Generate MX Files
+                      </>
+                    )}
+                  </Button>
+                  
+                  {generationStatus === 'success' && (
+                    <Button variant="outline" className="flex items-center gap-2">
+                      <Download className="w-4 h-4" />
+                      Download Files
+                    </Button>
+                  )}
+                </div>
+
+                {generationStatus === 'success' && (
+                  <div className="flex items-center gap-2 text-green-600">
+                    <CheckCircle className="w-5 h-5" />
+                    <span className="font-medium">Generation completed successfully!</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 };

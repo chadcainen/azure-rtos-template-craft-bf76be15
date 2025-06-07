@@ -1,16 +1,30 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
+import { Badge } from '@/components/ui/badge';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Badge } from '@/components/ui/badge';
-import { Progress } from '@/components/ui/progress';
-import { Zap, Play, Package, AlertTriangle } from 'lucide-react';
+import { 
+  Zap, 
+  Package, 
+  Settings, 
+  AlertTriangle, 
+  CheckCircle, 
+  FileText,
+  Download,
+  Play,
+  Layers
+} from 'lucide-react';
 import { STM32_COLORS } from '@/styles/stm32-theme';
+import { 
+  getBoardsForSeries, 
+  getMiddlewareForBoard, 
+  getApplicationsForMiddleware,
+  parseProjectData
+} from '@/utils/projectParser';
 
 interface GeneratePackTabProps {
   projectData?: any;
@@ -18,57 +32,77 @@ interface GeneratePackTabProps {
 
 const GeneratePackTab: React.FC<GeneratePackTabProps> = ({ projectData }) => {
   const [selectedSeries, setSelectedSeries] = useState('');
-  const [packName, setPackName] = useState('');
-  const [packVersion, setPackVersion] = useState('1.0.0');
+  const [selectedBoards, setSelectedBoards] = useState<string[]>([]);
   const [selectedMiddleware, setSelectedMiddleware] = useState<string[]>([]);
+  const [packVersion, setPackVersion] = useState('1.0.0');
+  const [packName, setPackName] = useState('STM32_AzureRTOS_Pack');
+  const [includeExamples, setIncludeExamples] = useState(true);
+  const [includeDocumentation, setIncludeDocumentation] = useState(true);
   const [isGenerating, setIsGenerating] = useState(false);
-  const [progress, setProgress] = useState(0);
+  const [generationStatus, setGenerationStatus] = useState<'idle' | 'success' | 'error'>('idle');
+  
+  const [availableSeries, setAvailableSeries] = useState<string[]>([]);
+  const [availableBoards, setAvailableBoards] = useState<string[]>([]);
+  const [availableMiddleware, setAvailableMiddleware] = useState<string[]>([]);
 
-  const middleware = [
-    { id: 'threadx', name: 'ThreadX', description: 'Real-time operating system' },
-    { id: 'filex', name: 'FileX', description: 'Embedded file system' },
-    { id: 'netxduo', name: 'NetX Duo', description: 'TCP/IP network stack' },
-    { id: 'usbx', name: 'USBX', description: 'USB host and device stack' },
-    { id: 'levelx', name: 'LevelX', description: 'NAND flash wear leveling' },
-  ];
-
-  const handleMiddlewareChange = (middlewareId: string, checked: boolean) => {
-    if (checked) {
-      setSelectedMiddleware([...selectedMiddleware, middlewareId]);
-    } else {
-      setSelectedMiddleware(selectedMiddleware.filter(id => id !== middlewareId));
+  // Initialize data from project
+  useEffect(() => {
+    if (projectData) {
+      const parsedData = parseProjectData(projectData);
+      setAvailableSeries(parsedData.series);
+      setAvailableMiddleware(['ThreadX', 'NetXDuo', 'FileX', 'USBX']);
+      (window as any).addConsoleLog?.('info', 'Pack Generator initialized with project data');
     }
+  }, [projectData]);
+
+  // Update boards when series changes
+  useEffect(() => {
+    if (selectedSeries && projectData) {
+      const boards = getBoardsForSeries(selectedSeries, projectData);
+      setAvailableBoards(boards);
+      setSelectedBoards([]);
+    }
+  }, [selectedSeries, projectData]);
+
+  const handleBoardToggle = (board: string) => {
+    setSelectedBoards(prev => 
+      prev.includes(board) 
+        ? prev.filter(b => b !== board)
+        : [...prev, board]
+    );
+  };
+
+  const handleMiddlewareToggle = (middleware: string) => {
+    setSelectedMiddleware(prev => 
+      prev.includes(middleware) 
+        ? prev.filter(m => m !== middleware)
+        : [...prev, middleware]
+    );
   };
 
   const handleGenerate = async () => {
-    if (!selectedSeries || !packName || selectedMiddleware.length === 0) {
-      (window as any).addConsoleLog?.('error', 'Please fill in all required fields and select middleware');
+    if (!selectedSeries || selectedBoards.length === 0 || selectedMiddleware.length === 0) {
+      (window as any).addConsoleLog?.('error', 'Please select series, boards, and middleware components');
       return;
     }
 
     setIsGenerating(true);
-    setProgress(0);
-
-    (window as any).addConsoleLog?.('info', `Starting pack generation for ${packName}...`);
-
-    const steps = [
-      'Validating pack configuration...',
-      'Loading middleware templates...',
-      'Generating pack descriptor...',
-      'Creating middleware configurations...',
-      'Building pack structure...',
-      'Generating documentation...',
-      'Finalizing pack...'
-    ];
-
-    for (let i = 0; i < steps.length; i++) {
-      await new Promise(resolve => setTimeout(resolve, 1200));
-      setProgress(((i + 1) / steps.length) * 100);
-      (window as any).addConsoleLog?.('info', steps[i]);
+    setGenerationStatus('idle');
+    
+    try {
+      (window as any).addConsoleLog?.('info', `Generating pack for ${selectedSeries} with ${selectedBoards.length} boards and ${selectedMiddleware.length} middleware components`);
+      
+      // Simulate generation process
+      await new Promise(resolve => setTimeout(resolve, 3000));
+      
+      setGenerationStatus('success');
+      (window as any).addConsoleLog?.('success', `Pack ${packName} v${packVersion} generated successfully`);
+    } catch (error) {
+      setGenerationStatus('error');
+      (window as any).addConsoleLog?.('error', 'Failed to generate pack');
+    } finally {
+      setIsGenerating(false);
     }
-
-    (window as any).addConsoleLog?.('success', `Pack ${packName} v${packVersion} generated successfully`);
-    setIsGenerating(false);
   };
 
   if (!projectData) {
@@ -85,133 +119,267 @@ const GeneratePackTab: React.FC<GeneratePackTabProps> = ({ projectData }) => {
   }
 
   return (
-    <div className="space-y-6">
-      <Card>
-        <CardHeader>
-          <div className="flex items-center gap-2">
-            <Zap className="w-5 h-5" style={{ color: STM32_COLORS.secondary }} />
-            <CardTitle>Firmware Pack Generation</CardTitle>
-          </div>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          <div className="grid md:grid-cols-2 gap-6">
-            <div className="space-y-4">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50">
+      {/* Enhanced Header */}
+      <div className="bg-gradient-to-r from-blue-900 via-blue-800 to-purple-900 shadow-xl">
+        <div className="max-w-7xl mx-auto px-6 py-8">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-4">
+              <div className="bg-white/20 backdrop-blur-sm rounded-2xl p-3">
+                <Package className="w-8 h-8 text-white" />
+              </div>
               <div>
-                <Label htmlFor="pack-name">Pack Name *</Label>
+                <h1 className="text-3xl font-bold text-white">STM32 Pack Generator</h1>
+                <p className="text-blue-200 mt-1">Professional CMSIS Pack Generation for Azure RTOS</p>
+              </div>
+            </div>
+            <div className="flex items-center space-x-2">
+              <Badge className="bg-green-500/20 text-green-100 border-green-400/30">
+                <Zap className="w-4 h-4 mr-1" />
+                Ready to Generate
+              </Badge>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="max-w-7xl mx-auto px-6 py-8 space-y-8">
+        {/* Pack Configuration */}
+        <Card className="bg-white/80 backdrop-blur-sm border-0 shadow-xl">
+          <CardHeader className="bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-t-lg">
+            <div className="flex items-center gap-3">
+              <Settings className="w-6 h-6" />
+              <CardTitle className="text-xl">Pack Configuration</CardTitle>
+            </div>
+          </CardHeader>
+          <CardContent className="p-8">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+              <div className="space-y-3">
+                <label className="text-sm font-bold text-gray-700 flex items-center gap-2">
+                  <div className="w-3 h-3 rounded-full bg-blue-500"></div>
+                  Pack Name
+                </label>
                 <Input
-                  id="pack-name"
-                  placeholder="Enter pack name"
                   value={packName}
                   onChange={(e) => setPackName(e.target.value)}
+                  placeholder="Enter pack name"
+                  className="h-12 border-2 border-blue-200 focus:border-blue-500 bg-white"
                 />
               </div>
 
-              <div>
-                <Label htmlFor="pack-version">Pack Version</Label>
+              <div className="space-y-3">
+                <label className="text-sm font-bold text-gray-700 flex items-center gap-2">
+                  <div className="w-3 h-3 rounded-full bg-purple-500"></div>
+                  Pack Version
+                </label>
                 <Input
-                  id="pack-version"
-                  placeholder="1.0.0"
                   value={packVersion}
                   onChange={(e) => setPackVersion(e.target.value)}
+                  placeholder="1.0.0"
+                  className="h-12 border-2 border-purple-200 focus:border-purple-500 bg-white"
                 />
               </div>
 
-              <div>
-                <Label htmlFor="series-select">Target STM32 Series *</Label>
+              <div className="space-y-3">
+                <label className="text-sm font-bold text-gray-700 flex items-center gap-2">
+                  <div className="w-3 h-3 rounded-full bg-green-500"></div>
+                  STM32 Series
+                </label>
                 <Select value={selectedSeries} onValueChange={setSelectedSeries}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select target series" />
+                  <SelectTrigger className="h-12 border-2 border-green-200 focus:border-green-500 bg-white">
+                    <SelectValue placeholder="Select series" />
                   </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="f4">STM32F4 Series</SelectItem>
-                    <SelectItem value="f7">STM32F7 Series</SelectItem>
-                    <SelectItem value="h7">STM32H7 Series</SelectItem>
-                    <SelectItem value="l4">STM32L4 Series</SelectItem>
-                    <SelectItem value="g4">STM32G4 Series</SelectItem>
+                  <SelectContent className="bg-white border-2 border-green-200">
+                    {availableSeries.map((series) => (
+                      <SelectItem key={series} value={series}>
+                        <span className="font-medium">STM32{series.toUpperCase()}</span>
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
             </div>
+          </CardContent>
+        </Card>
 
-            <div className="space-y-4">
-              <div>
-                <Label>Azure RTOS Middleware *</Label>
-                <div className="mt-2 space-y-3">
-                  {middleware.map((mw) => (
-                    <div key={mw.id} className="flex items-start gap-3">
-                      <Checkbox
-                        id={mw.id}
-                        checked={selectedMiddleware.includes(mw.id)}
-                        onCheckedChange={(checked) => handleMiddlewareChange(mw.id, checked as boolean)}
-                      />
-                      <div>
-                        <label htmlFor={mw.id} className="text-sm font-medium cursor-pointer">
-                          {mw.name}
-                        </label>
-                        <p className="text-xs text-gray-500">{mw.description}</p>
+        {/* Board Selection */}
+        {availableBoards.length > 0 && (
+          <Card className="bg-white/80 backdrop-blur-sm border-0 shadow-xl">
+            <CardHeader className="bg-gradient-to-r from-green-600 to-teal-600 text-white rounded-t-lg">
+              <CardTitle className="text-xl flex items-center gap-3">
+                <Layers className="w-6 h-6" />
+                Development Boards ({selectedSeries.toUpperCase()})
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {availableBoards.map((board) => (
+                  <div
+                    key={board}
+                    className={`p-4 rounded-xl border-2 cursor-pointer transition-all duration-200 ${
+                      selectedBoards.includes(board)
+                        ? 'bg-gradient-to-r from-green-100 to-teal-100 border-green-300 shadow-md'
+                        : 'bg-white border-gray-200 hover:border-green-300 hover:shadow-sm'
+                    }`}
+                    onClick={() => handleBoardToggle(board)}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex-1">
+                        <h4 className="font-medium text-gray-900">{board}</h4>
+                        <p className="text-sm text-gray-500 mt-1">
+                          STM32{selectedSeries.toUpperCase()} Development Board
+                        </p>
                       </div>
+                      {selectedBoards.includes(board) && (
+                        <CheckCircle className="w-5 h-5 text-green-600" />
+                      )}
                     </div>
-                  ))}
-                </div>
+                  </div>
+                ))}
               </div>
+            </CardContent>
+          </Card>
+        )}
 
-              {selectedMiddleware.length > 0 && (
-                <div className="p-3 bg-green-50 rounded-lg">
-                  <h4 className="text-sm font-medium mb-2" style={{ color: STM32_COLORS.success }}>
-                    Selected Components ({selectedMiddleware.length})
-                  </h4>
-                  <div className="flex flex-wrap gap-1">
-                    {selectedMiddleware.map((mwId) => {
-                      const mw = middleware.find(m => m.id === mwId);
-                      return (
-                        <Badge key={mwId} variant="secondary" className="text-xs">
-                          {mw?.name}
-                        </Badge>
-                      );
-                    })}
+        {/* Middleware Selection */}
+        <Card className="bg-white/80 backdrop-blur-sm border-0 shadow-xl">
+          <CardHeader className="bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-t-lg">
+            <CardTitle className="text-xl flex items-center gap-3">
+              <Package className="w-6 h-6" />
+              Azure RTOS Middleware Components
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              {availableMiddleware.map((middleware) => (
+                <div
+                  key={middleware}
+                  className={`p-4 rounded-xl border-2 cursor-pointer transition-all duration-200 ${
+                    selectedMiddleware.includes(middleware)
+                      ? 'bg-gradient-to-r from-purple-100 to-pink-100 border-purple-300 shadow-md'
+                      : 'bg-white border-gray-200 hover:border-purple-300 hover:shadow-sm'
+                  }`}
+                  onClick={() => handleMiddlewareToggle(middleware)}
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex-1">
+                      <h4 className="font-medium text-gray-900">{middleware}</h4>
+                      <p className="text-sm text-gray-500 mt-1">
+                        Azure RTOS Component
+                      </p>
+                    </div>
+                    {selectedMiddleware.includes(middleware) && (
+                      <CheckCircle className="w-5 h-5 text-purple-600" />
+                    )}
                   </div>
                 </div>
-              )}
+              ))}
             </div>
-          </div>
+          </CardContent>
+        </Card>
 
-          {isGenerating && (
-            <div className="space-y-2">
-              <div className="flex items-center justify-between text-sm">
-                <span>Generating firmware pack...</span>
-                <span>{Math.round(progress)}%</span>
+        {/* Pack Options */}
+        <Card className="bg-white/80 backdrop-blur-sm border-0 shadow-xl">
+          <CardHeader className="bg-gradient-to-r from-orange-600 to-red-600 text-white rounded-t-lg">
+            <CardTitle className="text-xl flex items-center gap-3">
+              <FileText className="w-6 h-6" />
+              Pack Generation Options
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-8">
+            <div className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div className="space-y-4">
+                  <div className="flex items-center space-x-3">
+                    <Checkbox
+                      id="includeExamples"
+                      checked={includeExamples}
+                      onCheckedChange={(checked) => setIncludeExamples(checked as boolean)}
+                      className="w-5 h-5"
+                    />
+                    <label htmlFor="includeExamples" className="text-sm font-medium text-gray-700">
+                      Include Example Projects
+                    </label>
+                  </div>
+                  <p className="text-sm text-gray-500 ml-8">
+                    Add ready-to-use example projects for each selected middleware component
+                  </p>
+                </div>
+
+                <div className="space-y-4">
+                  <div className="flex items-center space-x-3">
+                    <Checkbox
+                      id="includeDocumentation"
+                      checked={includeDocumentation}
+                      onCheckedChange={(checked) => setIncludeDocumentation(checked as boolean)}
+                      className="w-5 h-5"
+                    />
+                    <label htmlFor="includeDocumentation" className="text-sm font-medium text-gray-700">
+                      Include Documentation
+                    </label>
+                  </div>
+                  <p className="text-sm text-gray-500 ml-8">
+                    Add comprehensive documentation and API references
+                  </p>
+                </div>
               </div>
-              <Progress value={progress} className="h-2" />
+
+              <div className="pt-6 border-t border-gray-200">
+                <div className="flex items-center justify-between">
+                  <div className="space-y-2">
+                    <h4 className="font-medium text-gray-900">Pack Summary</h4>
+                    <div className="flex flex-wrap gap-2">
+                      <Badge className="bg-blue-100 text-blue-800">
+                        Series: STM32{selectedSeries.toUpperCase()}
+                      </Badge>
+                      <Badge className="bg-green-100 text-green-800">
+                        Boards: {selectedBoards.length}
+                      </Badge>
+                      <Badge className="bg-purple-100 text-purple-800">
+                        Middleware: {selectedMiddleware.length}
+                      </Badge>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-4">
+                    <Button
+                      onClick={handleGenerate}
+                      disabled={isGenerating || !selectedSeries || selectedBoards.length === 0 || selectedMiddleware.length === 0}
+                      className="bg-gradient-to-r from-orange-600 to-red-600 hover:from-orange-700 hover:to-red-700 text-white px-8 py-3 h-12"
+                    >
+                      {isGenerating ? (
+                        <>
+                          <div className="animate-spin w-5 h-5 border-2 border-white/30 border-t-white rounded-full mr-2" />
+                          Generating Pack...
+                        </>
+                      ) : (
+                        <>
+                          <Play className="w-5 h-5 mr-2" />
+                          Generate Pack
+                        </>
+                      )}
+                    </Button>
+                    
+                    {generationStatus === 'success' && (
+                      <Button variant="outline" className="flex items-center gap-2">
+                        <Download className="w-4 h-4" />
+                        Download Pack
+                      </Button>
+                    )}
+                  </div>
+                </div>
+
+                {generationStatus === 'success' && (
+                  <div className="flex items-center gap-2 text-green-600 mt-4">
+                    <CheckCircle className="w-5 h-5" />
+                    <span className="font-medium">Pack generation completed successfully!</span>
+                  </div>
+                )}
+              </div>
             </div>
-          )}
-
-          <div className="flex gap-3">
-            <Button
-              onClick={handleGenerate}
-              disabled={isGenerating || !selectedSeries || !packName || selectedMiddleware.length === 0}
-              className="flex items-center gap-2"
-              style={{ backgroundColor: STM32_COLORS.secondary }}
-            >
-              {isGenerating ? (
-                <>
-                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                  Generating...
-                </>
-              ) : (
-                <>
-                  <Play className="w-4 h-4" />
-                  Generate Pack
-                </>
-              )}
-            </Button>
-
-            <Button variant="outline" className="flex items-center gap-2">
-              <Package className="w-4 h-4" />
-              View Pack Structure
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 };
