@@ -96,6 +96,19 @@ const GenerateFullPackTab: React.FC<GenerateFullPackTabProps> = ({ projectData }
     (window as any).addConsoleLog?.('info', `Output directory set to: ${defaultPath}`);
   };
 
+  // Handler functions for checkboxes that properly handle CheckedState
+  const handleIncludeAppsChange = (checked: boolean | "indeterminate") => {
+    setIncludeAllApps(checked === true);
+  };
+
+  const handleIncludeDocsChange = (checked: boolean | "indeterminate") => {
+    setIncludeDocs(checked === true);
+  };
+
+  const handleIncludeDemosChange = (checked: boolean | "indeterminate") => {
+    setIncludeDemos(checked === true);
+  };
+
   if (!projectData) {
     return (
       <div className="space-y-6">
@@ -201,7 +214,7 @@ const GenerateFullPackTab: React.FC<GenerateFullPackTabProps> = ({ projectData }
                     <Checkbox 
                       id="include-apps" 
                       checked={includeAllApps} 
-                      onCheckedChange={setIncludeAllApps}
+                      onCheckedChange={handleIncludeAppsChange}
                     />
                     <Label htmlFor="include-apps" className="text-sm font-medium">
                       Include All Applications
@@ -212,7 +225,7 @@ const GenerateFullPackTab: React.FC<GenerateFullPackTabProps> = ({ projectData }
                     <Checkbox 
                       id="include-docs" 
                       checked={includeDocs} 
-                      onCheckedChange={setIncludeDocs}
+                      onCheckedChange={handleIncludeDocsChange}
                     />
                     <Label htmlFor="include-docs" className="text-sm font-medium">
                       Include Documentation
@@ -223,7 +236,7 @@ const GenerateFullPackTab: React.FC<GenerateFullPackTabProps> = ({ projectData }
                     <Checkbox 
                       id="include-demos" 
                       checked={includeDemos} 
-                      onCheckedChange={setIncludeDemos}
+                      onCheckedChange={handleIncludeDemosChange}
                     />
                     <Label htmlFor="include-demos" className="text-sm font-medium">
                       Include Demo Projects
