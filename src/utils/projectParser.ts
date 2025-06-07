@@ -1,4 +1,3 @@
-
 // Utility functions for parsing PACK_AZRTOS_AutoGen project data
 export interface BoardConfig {
   name: string;
@@ -18,7 +17,7 @@ export interface ProjectStructure {
   applications: string[];
 }
 
-// Static mappings based on the project structure
+// Static mappings based on the project structure - updated to match Python code exactly
 export const SERIES_TO_BOARDS: Record<string, string[]> = {
   'f4': ['STM32469I-Discovery', 'STM32F429ZI-Nucleo'],
   'f7': ['STM32F767ZI-Nucleo', 'STM32F769I-Discovery'],
@@ -32,7 +31,7 @@ export const SERIES_TO_BOARDS: Record<string, string[]> = {
 };
 
 export const BOARD_TO_MIDDLEWARE: Record<string, string[]> = {
-  "NUCLEO-G0B1RE": ["ThreadX"],
+  "NUCLEO-G0B1RE": ["ThreadX", "FileX"],
   "NUCLEO-G474RE": ["ThreadX", "FileX"],
   "NUCLEO-H723ZG": ["ThreadX", "NetXDuo", "USBX"],
   "NUCLEO-H7S3L8": ["ThreadX", "NetXDuo", "USBX"],
@@ -40,19 +39,19 @@ export const BOARD_TO_MIDDLEWARE: Record<string, string[]> = {
   "NUCLEO-L552ZE-Q": ["ThreadX", "USBX"],
   "NUCLEO-WL55JC": ["ThreadX", "FileX"],
   "P-NUCLEO-WB55.Nucleo": ["ThreadX", "FileX", "USBX"],
-  "STM32469I-Discovery": ["ThreadX", "FileX", "USBX"],
-  "STM32F429ZI-Nucleo": ["ThreadX", "NetXDuo", "USBX"],
-  "STM32F767ZI-Nucleo": ["ThreadX", "NetXDuo", "USBX"],
-  "STM32F769I-Discovery": ["FileX", "NetXDuo", "USBX"],
-  "STM32G0C1E-EV": ["ThreadX", "USBX"],
-  "STM32G474E-EVAL": ["USBX", "FileX"],
+  "STM32469I-Discovery": ["ThreadX", "NetXDuo", "USBX"],
+  "STM32F429ZI-Nucleo": ["FileX", "NetXDuo", "USBX"],
+  "STM32F767ZI-Nucleo": ["FileX", "NetXDuo", "USBX"],
+  "STM32F769I-Discovery": ["ThreadX", "USBX"],
+  "STM32G0C1E-EV": ["FileX", "USBX"],
+  "STM32G474E-EVAL": ["ThreadX", "NetXDuo", "USBX", "FileX"],
   "STM32H735G-DK": ["ThreadX", "NetXDuo", "USBX", "FileX"],
   "STM32H743I-EVAL": ["USBX"],
   "STM32H747I-DISCO": ["NetXDuo", "USBX"],
-  "STM32H7S78-DK": ["ThreadX", "FileX", "USBX", "NetXDuo"],
-  "STM32L4R9I-Discovery": ["FileX", "ThreadX", "USBX"],
-  "STM32L562E-DK": ["FileX"],
-  "STM32WB5MM-DK": ["FileX", "USBX"]
+  "STM32H7S78-DK": ["ThreadX", "FileX", "USBX"],
+  "STM32L4R9I-Discovery": ["FileX"],
+  "STM32L562E-DK": ["FileX", "USBX"],
+  "STM32WB5MM-DK": ["ThreadX", "FileX", "USBX"]
 };
 
 export const parseProjectData = (projectData: any): ProjectStructure => {
@@ -146,24 +145,70 @@ export const getApplicationsForMiddleware = (board: string, middleware: string, 
       file.name === `${board}.json`
     );
     
-    if (boardFile) {
-      // In a real implementation, we would read the file content
-      // For now, return based on middleware prefix
-      const allApps = ['Tx_Thread_Creation', 'Tx_Thread_Sync', 'Tx_LowPower', 'Tx_Thread_MsgQueue',
-                      'Fx_File_Edit_Standalone', 'Fx_Dual_Instance', 'Fx_MultiAccess', 'Fx_NoR_Write_Read_File', 'Fx_uSD_File_Edit',
-                      'Nx_TCP_Echo_Client', 'Nx_TCP_Echo_Server', 'Nx_UDP_Echo_Client', 'Nx_UDP_Echo_Server', 'Nx_WebServer', 'Nx_MQTT_Client', 'Nx_SNTP_Client', 'Nx_Iperf',
-                      'Ux_Device_CDC_ACM', 'Ux_Device_HID', 'Ux_Device_MSC', 'Ux_Host_HID', 'Ux_Host_MSC', 'Ux_Device_CustomHID', 'Ux_Device_DFU', 'Ux_Host_CDC_ACM'];
-      
-      const prefix = middleware === 'ThreadX' ? 'Tx_' : 
-                    middleware === 'FileX' ? 'Fx_' :
-                    middleware === 'NetXDuo' ? 'Nx_' :
-                    middleware === 'USBX' ? 'Ux_' : '';
-      
-      return allApps.filter(app => app.startsWith(prefix));
+    if (boardFile && boardFile.content) {
+      try {
+        const boardData = JSON.parse(boardFile.content);
+        const boardApps = boardData.board?.[0]?.apps || [];
+        
+        // Filter applications based on the selected middleware
+        const middlewareToPrefix: Record<string, string> = {
+          "ThreadX": "Tx_",
+          "NetXDuo": "Nx_",
+          "USBX": "Ux_",
+          "FileX": "Fx_"
+        };
+        
+        const prefix = middlewareToPrefix[middleware];
+        if (prefix) {
+          return boardApps.filter((app: string) => app.startsWith(prefix));
+        }
+      } catch (error) {
+        console.error(`Error parsing board file ${board}.json:`, error);
+      }
     }
   }
   
-  return [];
+  // Fallback to static data based on middleware
+  const allApps = {
+    "ThreadX": ['Tx_Thread_Creation', 'Tx_Thread_Sync', 'Tx_LowPower', 'Tx_Thread_MsgQueue'],
+    "FileX": ['Fx_File_Edit_Standalone', 'Fx_Dual_Instance', 'Fx_MultiAccess', 'Fx_NoR_Write_Read_File', 'Fx_uSD_File_Edit'],
+    "NetXDuo": ['Nx_TCP_Echo_Client', 'Nx_TCP_Echo_Server', 'Nx_UDP_Echo_Client', 'Nx_UDP_Echo_Server', 'Nx_WebServer', 'Nx_MQTT_Client', 'Nx_SNTP_Client', 'Nx_Iperf'],
+    "USBX": ['Ux_Device_CDC_ACM', 'Ux_Device_HID', 'Ux_Device_MSC', 'Ux_Host_HID', 'Ux_Host_MSC', 'Ux_Device_CustomHID', 'Ux_Device_DFU', 'Ux_Host_CDC_ACM']
+  };
+  
+  return allApps[middleware as keyof typeof allApps] || [];
+};
+
+export const getApplicationDetails = (board: string, application: string, projectData: any) => {
+  if (projectData?.apps?.json) {
+    const boardFile = projectData.apps.json.find((file: any) => 
+      file.name === `${board}.json`
+    );
+    
+    if (boardFile && boardFile.content) {
+      try {
+        const boardData = JSON.parse(boardFile.content);
+        const appsDetails = boardData.board?.[0]?.apps_details || [];
+        
+        return appsDetails.find((app: any) => app.name === application) || {
+          name: application,
+          description: `${application} application for ${board}`,
+          features: [`${application.split('_')[0]} middleware`, 'Real-time processing', 'Azure RTOS integration'],
+          requirements: [board, `${application.split('_')[0]} middleware`]
+        };
+      } catch (error) {
+        console.error(`Error parsing board file ${board}.json:`, error);
+      }
+    }
+  }
+  
+  // Fallback default details
+  return {
+    name: application,
+    description: `${application} application for ${board}`,
+    features: [`${application.split('_')[0]} middleware`, 'Real-time processing', 'Azure RTOS integration'],
+    requirements: [board, `${application.split('_')[0]} middleware`]
+  };
 };
 
 export const getProjectFiles = (projectData: any) => {
