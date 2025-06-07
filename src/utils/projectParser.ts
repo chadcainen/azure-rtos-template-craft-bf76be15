@@ -1,3 +1,4 @@
+
 // Utility functions for parsing PACK_AZRTOS_AutoGen project data
 export interface BoardConfig {
   name: string;
@@ -15,44 +16,8 @@ export interface ProjectStructure {
   boards: BoardConfig[];
   middleware: string[];
   applications: string[];
+  projectPath?: string;
 }
-
-// Static mappings based on the project structure - updated to match Python code exactly
-export const SERIES_TO_BOARDS: Record<string, string[]> = {
-  'f4': ['STM32469I-Discovery', 'STM32F429ZI-Nucleo'],
-  'f7': ['STM32F767ZI-Nucleo', 'STM32F769I-Discovery'],
-  'g4': ['NUCLEO-G474RE', 'STM32G474E-EVAL'],
-  'h7': ['NUCLEO-H723ZG', 'STM32H735G-DK', 'STM32H743I-EVAL', 'STM32H747I-DISCO'],
-  'h7rs': ['NUCLEO-H7S3L8', 'STM32H7S78-DK'],
-  'l4': ['NUCLEO-L4R5ZI', 'STM32L4R9I-Discovery'],
-  'l5': ['NUCLEO-L552ZE-Q', 'STM32L562E-DK'],
-  'wb': ['P-NUCLEO-WB55.Nucleo', 'STM32WB5MM-DK'],
-  'wl': ['NUCLEO-WL55JC']
-};
-
-export const BOARD_TO_MIDDLEWARE: Record<string, string[]> = {
-  "NUCLEO-G0B1RE": ["ThreadX", "FileX"],
-  "NUCLEO-G474RE": ["ThreadX", "FileX"],
-  "NUCLEO-H723ZG": ["ThreadX", "NetXDuo", "USBX"],
-  "NUCLEO-H7S3L8": ["ThreadX", "NetXDuo", "USBX"],
-  "NUCLEO-L4R5ZI": ["ThreadX", "USBX"],
-  "NUCLEO-L552ZE-Q": ["ThreadX", "USBX"],
-  "NUCLEO-WL55JC": ["ThreadX", "FileX"],
-  "P-NUCLEO-WB55.Nucleo": ["ThreadX", "FileX", "USBX"],
-  "STM32469I-Discovery": ["ThreadX", "NetXDuo", "USBX"],
-  "STM32F429ZI-Nucleo": ["FileX", "NetXDuo", "USBX"],
-  "STM32F767ZI-Nucleo": ["FileX", "NetXDuo", "USBX"],
-  "STM32F769I-Discovery": ["ThreadX", "USBX"],
-  "STM32G0C1E-EV": ["FileX", "USBX"],
-  "STM32G474E-EVAL": ["ThreadX", "NetXDuo", "USBX", "FileX"],
-  "STM32H735G-DK": ["ThreadX", "NetXDuo", "USBX", "FileX"],
-  "STM32H743I-EVAL": ["USBX"],
-  "STM32H747I-DISCO": ["NetXDuo", "USBX"],
-  "STM32H7S78-DK": ["ThreadX", "FileX", "USBX"],
-  "STM32L4R9I-Discovery": ["FileX"],
-  "STM32L562E-DK": ["FileX", "USBX"],
-  "STM32WB5MM-DK": ["ThreadX", "FileX", "USBX"]
-};
 
 export const parseProjectData = (projectData: any): ProjectStructure => {
   if (!projectData) {
@@ -64,20 +29,27 @@ export const parseProjectData = (projectData: any): ProjectStructure => {
     };
   }
 
-  const series = ['f4', 'f7', 'g4', 'h7', 'h7rs', 'l4', 'l5', 'wb', 'wl'];
-  
-  // Parse board configurations from uploaded project files
+  console.log('Parsing project data:', projectData);
+
+  // Extract series from JSON files
+  const series: string[] = [];
   const boards: BoardConfig[] = [];
-  const middleware = new Set<string>(['ThreadX', 'FileX', 'NetXDuo', 'USBX']);
+  const middleware = new Set<string>();
   const applications = new Set<string>();
 
-  // Parse JSON files to get actual board configurations
+  // Parse JSON files to get series and board data
   if (projectData.apps?.json) {
     projectData.apps.json.forEach((file: any) => {
       const fileName = file.name;
+      console.log('Processing JSON file:', fileName);
       
-      // Skip series files (f4.json, h7.json, etc.)
-      if (/^[a-z]+\d*\.json$/.test(fileName)) {
+      // Series files (f4.json, h7.json, etc.)
+      const seriesMatch = fileName.match(/^([a-z]+\d*)\.json$/);
+      if (seriesMatch) {
+        const seriesName = seriesMatch[1];
+        if (!series.includes(seriesName)) {
+          series.push(seriesName);
+        }
         return;
       }
       
@@ -85,129 +57,260 @@ export const parseProjectData = (projectData: any): ProjectStructure => {
       const boardName = fileName.replace('.json', '');
       
       try {
-        // In a real implementation, we would read the file content
-        // For now, we'll use the middleware mapping
-        const boardMiddleware = BOARD_TO_MIDDLEWARE[boardName] || [];
-        const boardApps: string[] = [];
-        
-        // Add mock applications based on middleware
-        boardMiddleware.forEach(mw => {
-          if (mw === 'ThreadX') {
-            boardApps.push('Tx_Thread_Creation', 'Tx_Thread_Sync', 'Tx_LowPower', 'Tx_Thread_MsgQueue');
-          } else if (mw === 'FileX') {
-            boardApps.push('Fx_File_Edit_Standalone', 'Fx_Dual_Instance', 'Fx_MultiAccess', 'Fx_NoR_Write_Read_File', 'Fx_uSD_File_Edit');
-          } else if (mw === 'NetXDuo') {
-            boardApps.push('Nx_TCP_Echo_Client', 'Nx_TCP_Echo_Server', 'Nx_UDP_Echo_Client', 'Nx_UDP_Echo_Server', 'Nx_WebServer', 'Nx_MQTT_Client', 'Nx_SNTP_Client', 'Nx_Iperf');
-          } else if (mw === 'USBX') {
-            boardApps.push('Ux_Device_CDC_ACM', 'Ux_Device_HID', 'Ux_Device_MSC', 'Ux_Host_HID', 'Ux_Host_MSC', 'Ux_Device_CustomHID', 'Ux_Device_DFU', 'Ux_Host_CDC_ACM');
-          }
-        });
-        
-        boards.push({
-          name: boardName,
-          apps: boardApps,
-          apps_details: boardApps.map(app => ({
-            name: app,
-            description: `${app} application for ${boardName}`,
-            features: [`${app.split('_')[0]} middleware`, 'Real-time processing', 'Azure RTOS integration'],
-            requirements: [boardName, `${app.split('_')[0]} middleware`]
-          }))
-        });
-        
-        boardApps.forEach(app => applications.add(app));
-        
+        // Read file content if available
+        let boardData = null;
+        if (file.file) {
+          // For uploaded files, we need to read the content
+          const reader = new FileReader();
+          reader.onload = (e) => {
+            try {
+              boardData = JSON.parse(e.target?.result as string);
+              processBoardData(boardName, boardData, boards, middleware, applications);
+            } catch (error) {
+              console.error(`Error parsing ${fileName}:`, error);
+            }
+          };
+          reader.readAsText(file.file);
+        } else if (file.content) {
+          // If content is already available
+          boardData = JSON.parse(file.content);
+          processBoardData(boardName, boardData, boards, middleware, applications);
+        }
       } catch (error) {
-        console.error(`Error parsing board file ${fileName}:`, error);
+        console.error(`Error processing board file ${fileName}:`, error);
+      }
+    });
+  }
+
+  // Extract middleware from actual directories
+  if (projectData.apps) {
+    Object.keys(projectData.apps).forEach(key => {
+      if (key !== 'json' && key !== 'templates' && projectData.apps[key].length > 0) {
+        middleware.add(key);
       }
     });
   }
 
   return {
-    series,
+    series: series.sort(),
     boards,
-    middleware: Array.from(middleware),
-    applications: Array.from(applications)
+    middleware: Array.from(middleware).sort(),
+    applications: Array.from(applications).sort(),
+    projectPath: projectData.projectPath
   };
 };
 
+function processBoardData(
+  boardName: string, 
+  boardData: any, 
+  boards: BoardConfig[], 
+  middleware: Set<string>, 
+  applications: Set<string>
+) {
+  if (!boardData?.board?.[0]) return;
+
+  const board = boardData.board[0];
+  const boardApps = board.apps || [];
+  const boardAppsDetails = board.apps_details || [];
+
+  // Add middleware based on app prefixes
+  boardApps.forEach((app: string) => {
+    if (app.startsWith('Tx_')) middleware.add('ThreadX');
+    else if (app.startsWith('Fx_')) middleware.add('FileX');
+    else if (app.startsWith('Nx_')) middleware.add('NetXDuo');
+    else if (app.startsWith('Ux_')) middleware.add('USBX');
+    
+    applications.add(app);
+  });
+
+  boards.push({
+    name: boardName,
+    apps: boardApps,
+    apps_details: boardAppsDetails
+  });
+}
+
 export const getBoardsForSeries = (series: string, projectData: any): string[] => {
-  return SERIES_TO_BOARDS[series] || [];
+  if (!projectData?.apps?.json) return [];
+  
+  const boards: string[] = [];
+  
+  // Read the series JSON file to get boards
+  const seriesFile = projectData.apps.json.find((file: any) => 
+    file.name === `${series}.json`
+  );
+  
+  if (seriesFile) {
+    try {
+      let seriesData = null;
+      if (seriesFile.content) {
+        seriesData = JSON.parse(seriesFile.content);
+      } else if (seriesFile.file) {
+        // For real uploaded files, we need to read asynchronously
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          try {
+            seriesData = JSON.parse(e.target?.result as string);
+            // This would need to be handled asynchronously in the component
+          } catch (error) {
+            console.error(`Error parsing series file ${series}.json:`, error);
+          }
+        };
+        reader.readAsText(seriesFile.file);
+        return [];
+      }
+      
+      if (seriesData?.serie?.[0]?.boards) {
+        return seriesData.serie[0].boards;
+      }
+    } catch (error) {
+      console.error(`Error reading series file ${series}.json:`, error);
+    }
+  }
+  
+  // Fallback: extract boards from individual board JSON files
+  projectData.apps.json.forEach((file: any) => {
+    const fileName = file.name;
+    if (!fileName.match(/^[a-z]+\d*\.json$/) && fileName.endsWith('.json')) {
+      const boardName = fileName.replace('.json', '');
+      boards.push(boardName);
+    }
+  });
+  
+  return boards.sort();
 };
 
 export const getMiddlewareForBoard = (board: string, projectData: any): string[] => {
-  return BOARD_TO_MIDDLEWARE[board] || [];
+  if (!projectData?.apps?.json) return [];
+  
+  const boardFile = projectData.apps.json.find((file: any) => 
+    file.name === `${board}.json`
+  );
+  
+  if (!boardFile) return [];
+  
+  try {
+    let boardData = null;
+    if (boardFile.content) {
+      boardData = JSON.parse(boardFile.content);
+    } else if (boardFile.file) {
+      // For uploaded files, this needs to be handled asynchronously
+      return [];
+    }
+    
+    if (boardData?.board?.[0]?.apps) {
+      const apps = boardData.board[0].apps;
+      const middleware = new Set<string>();
+      
+      apps.forEach((app: string) => {
+        if (app.startsWith('Tx_')) middleware.add('ThreadX');
+        else if (app.startsWith('Fx_')) middleware.add('FileX');
+        else if (app.startsWith('Nx_')) middleware.add('NetXDuo');
+        else if (app.startsWith('Ux_')) middleware.add('USBX');
+      });
+      
+      return Array.from(middleware).sort();
+    }
+  } catch (error) {
+    console.error(`Error parsing board file ${board}.json:`, error);
+  }
+  
+  return [];
 };
 
 export const getApplicationsForMiddleware = (board: string, middleware: string, projectData: any): string[] => {
-  // Try to get from actual JSON file if available
-  if (projectData?.apps?.json) {
-    const boardFile = projectData.apps.json.find((file: any) => 
-      file.name === `${board}.json`
-    );
+  if (!projectData?.apps?.json) return [];
+  
+  const boardFile = projectData.apps.json.find((file: any) => 
+    file.name === `${board}.json`
+  );
+  
+  if (!boardFile) return [];
+  
+  try {
+    let boardData = null;
+    if (boardFile.content) {
+      boardData = JSON.parse(boardFile.content);
+    } else if (boardFile.file) {
+      // For uploaded files, this needs to be handled asynchronously
+      return [];
+    }
     
-    if (boardFile && boardFile.content) {
-      try {
-        const boardData = JSON.parse(boardFile.content);
-        const boardApps = boardData.board?.[0]?.apps || [];
-        
-        // Filter applications based on the selected middleware
-        const middlewareToPrefix: Record<string, string> = {
-          "ThreadX": "Tx_",
-          "NetXDuo": "Nx_",
-          "USBX": "Ux_",
-          "FileX": "Fx_"
-        };
-        
-        const prefix = middlewareToPrefix[middleware];
-        if (prefix) {
-          return boardApps.filter((app: string) => app.startsWith(prefix));
-        }
-      } catch (error) {
-        console.error(`Error parsing board file ${board}.json:`, error);
+    if (boardData?.board?.[0]?.apps) {
+      const apps = boardData.board[0].apps;
+      
+      // Filter applications based on the selected middleware
+      const middlewareToPrefix: Record<string, string> = {
+        "ThreadX": "Tx_",
+        "NetXDuo": "Nx_",
+        "USBX": "Ux_",
+        "FileX": "Fx_"
+      };
+      
+      const prefix = middlewareToPrefix[middleware];
+      if (prefix) {
+        return apps.filter((app: string) => app.startsWith(prefix)).sort();
       }
     }
+  } catch (error) {
+    console.error(`Error parsing board file ${board}.json:`, error);
   }
   
-  // Fallback to static data based on middleware
-  const allApps = {
-    "ThreadX": ['Tx_Thread_Creation', 'Tx_Thread_Sync', 'Tx_LowPower', 'Tx_Thread_MsgQueue'],
-    "FileX": ['Fx_File_Edit_Standalone', 'Fx_Dual_Instance', 'Fx_MultiAccess', 'Fx_NoR_Write_Read_File', 'Fx_uSD_File_Edit'],
-    "NetXDuo": ['Nx_TCP_Echo_Client', 'Nx_TCP_Echo_Server', 'Nx_UDP_Echo_Client', 'Nx_UDP_Echo_Server', 'Nx_WebServer', 'Nx_MQTT_Client', 'Nx_SNTP_Client', 'Nx_Iperf'],
-    "USBX": ['Ux_Device_CDC_ACM', 'Ux_Device_HID', 'Ux_Device_MSC', 'Ux_Host_HID', 'Ux_Host_MSC', 'Ux_Device_CustomHID', 'Ux_Device_DFU', 'Ux_Host_CDC_ACM']
-  };
-  
-  return allApps[middleware as keyof typeof allApps] || [];
+  return [];
 };
 
 export const getApplicationDetails = (board: string, application: string, projectData: any) => {
-  if (projectData?.apps?.json) {
-    const boardFile = projectData.apps.json.find((file: any) => 
-      file.name === `${board}.json`
-    );
-    
-    if (boardFile && boardFile.content) {
-      try {
-        const boardData = JSON.parse(boardFile.content);
-        const appsDetails = boardData.board?.[0]?.apps_details || [];
-        
-        return appsDetails.find((app: any) => app.name === application) || {
+  if (!projectData?.apps?.json) {
+    return {
+      name: application,
+      description: `No project data available for ${application}`,
+      features: [],
+      requirements: []
+    };
+  }
+  
+  const boardFile = projectData.apps.json.find((file: any) => 
+    file.name === `${board}.json`
+  );
+  
+  if (boardFile) {
+    try {
+      let boardData = null;
+      if (boardFile.content) {
+        boardData = JSON.parse(boardFile.content);
+      } else if (boardFile.file) {
+        // For uploaded files, this needs to be handled asynchronously
+        return {
           name: application,
-          description: `${application} application for ${board}`,
-          features: [`${application.split('_')[0]} middleware`, 'Real-time processing', 'Azure RTOS integration'],
-          requirements: [board, `${application.split('_')[0]} middleware`]
+          description: `Loading details for ${application}...`,
+          features: [],
+          requirements: []
         };
-      } catch (error) {
-        console.error(`Error parsing board file ${board}.json:`, error);
       }
+      
+      if (boardData?.board?.[0]?.apps_details) {
+        const appsDetails = boardData.board[0].apps_details;
+        const appDetail = appsDetails.find((app: any) => app.name === application);
+        
+        if (appDetail) {
+          return {
+            name: appDetail.name,
+            description: appDetail.description || `${application} application for ${board}`,
+            features: appDetail.features || [],
+            requirements: appDetail.requirements || []
+          };
+        }
+      }
+    } catch (error) {
+      console.error(`Error parsing board file ${board}.json:`, error);
     }
   }
   
-  // Fallback default details
   return {
     name: application,
     description: `${application} application for ${board}`,
-    features: [`${application.split('_')[0]} middleware`, 'Real-time processing', 'Azure RTOS integration'],
-    requirements: [board, `${application.split('_')[0]} middleware`]
+    features: [],
+    requirements: [board]
   };
 };
 
@@ -223,204 +326,61 @@ export const getProjectFiles = (projectData: any) => {
 };
 
 export const getTemplateFiles = (middleware: string, application: string, projectData: any): string[] => {
+  if (!projectData?.apps?.[middleware]) return [];
+  
   const files: string[] = [];
   
-  // Mock template files based on project structure
-  if (projectData?.apps?.[middleware]?.[application]) {
-    // Return template files that would exist for this application
-    files.push(
-      `${application}/.extSettings.j2`,
-      `${application}/README.md.j2`,
-      `${application}/Core/Src/main.c.j2`,
-      `${application}/Core/Inc/main.h.j2`,
-      `${application}/AZURE_RTOS/app_azure_rtos.c.j2`
-    );
-    
-    if (middleware === 'ThreadX') {
-      files.push(
-        `${application}/Inc/app_threadx.h.j2`,
-        `${application}/Src/app_threadx.c.j2`
-      );
-    } else if (middleware === 'FileX') {
-      files.push(
-        `${application}/FileX/App/app_filex.c.j2`,
-        `${application}/FileX/App/app_filex.h.j2`
-      );
-    } else if (middleware === 'NetXDuo') {
-      files.push(
-        `${application}/NetXDuo/App/app_netxduo.c.j2`,
-        `${application}/NetXDuo/App/app_netxduo.h.j2`
-      );
-    } else if (middleware === 'USBX') {
-      files.push(
-        `${application}/USBX/App/app_usbx_device.c.j2`,
-        `${application}/USBX/App/app_usbx_device.h.j2`
-      );
-    }
+  // Look for actual template files in the project structure
+  const middlewareApps = projectData.apps[middleware];
+  
+  if (Array.isArray(middlewareApps)) {
+    middlewareApps.forEach((file: any) => {
+      if (file.path && file.path.includes(application) && file.name.endsWith('.j2')) {
+        files.push(file.path);
+      }
+    });
   }
   
-  return files;
+  return files.sort();
 };
 
 export const getFileContent = async (filePath: string, projectData: any): Promise<string> => {
-  // In a real implementation, this would read the actual file content
-  // For now, return mock content based on file type
+  if (!projectData) return '';
   
-  if (filePath.endsWith('.j2')) {
-    if (filePath.includes('main.c')) {
-      return `/* USER CODE BEGIN Header */
-/**
-  ******************************************************************************
-  * @file    main.c
-  * @author  MCD Application Team
-  * @brief   Main program body for {{ app_name }}
-  ******************************************************************************
-  */
-/* USER CODE END Header */
-
-/* Includes ------------------------------------------------------------------*/
-#include "main.h"
-#include "app_azure_rtos.h"
-
-/* USER CODE BEGIN Includes */
-
-/* USER CODE END Includes */
-
-/* USER CODE BEGIN PTD */
-
-/* USER CODE END PTD */
-
-/* USER CODE BEGIN PD */
-
-/* USER CODE END PD */
-
-/* USER CODE BEGIN PV */
-
-/* USER CODE END PV */
-
-/* USER CODE BEGIN PFP */
-
-/* USER CODE END PFP */
-
-/* USER CODE BEGIN 0 */
-
-/* USER CODE END 0 */
-
-/**
-  * @brief  The application entry point.
-  * @retval int
-  */
-int main(void)
-{
-  /* USER CODE BEGIN 1 */
-
-  /* USER CODE END 1 */
-
-  /* MCU Configuration--------------------------------------------------------*/
-
-  /* Reset of all peripherals, Initializes the Flash interface and the Systick. */
-  HAL_Init();
-
-  /* USER CODE BEGIN Init */
-
-  /* USER CODE END Init */
-
-  /* Configure the system clock */
-  SystemClock_Config();
-
-  /* USER CODE BEGIN SysInit */
-
-  /* USER CODE END SysInit */
-
-  /* Initialize all configured peripherals */
-  MX_GPIO_Init();
-
-  /* USER CODE BEGIN 2 */
-
-  /* USER CODE END 2 */
-
-  /* Init Azure RTOS */
-  MX_AURE_RTOS_Init();
-
-  /* Start scheduler */
-  tx_kernel_enter();
-
-  /* We should never get here as control is now taken by the scheduler */
-  /* Infinite loop */
-  /* USER CODE BEGIN WHILE */
-  while (1)
-  {
-    /* USER CODE END WHILE */
-
-    /* USER CODE BEGIN 3 */
-  }
-  /* USER CODE END 3 */
-}
-
-/* USER CODE BEGIN 4 */
-
-/* USER CODE END 4 */`;
-    } else if (filePath.includes('app_azure_rtos.c')) {
-      return `/* USER CODE BEGIN Header */
-/**
-  ******************************************************************************
-  * @file    app_azure_rtos.c
-  * @author  MCD Application Team
-  * @brief   Azure RTOS application
-  ******************************************************************************
-  */
-/* USER CODE END Header */
-
-/* Includes ------------------------------------------------------------------*/
-#include "app_azure_rtos.h"
-
-/* USER CODE BEGIN Includes */
-
-/* USER CODE END Includes */
-
-/* USER CODE BEGIN PTD */
-
-/* USER CODE END PTD */
-
-/* USER CODE BEGIN PD */
-
-/* USER CODE END PD */
-
-/* USER CODE BEGIN PV */
-
-/* USER CODE END PV */
-
-/* USER CODE BEGIN PFP */
-
-/* USER CODE END PFP */
-
-/**
-  * @brief  Initialize Azure RTOS.
-  * @param  None
-  * @retval None
-  */
-void MX_AURE_RTOS_Init(void)
-{
-  /* USER CODE BEGIN AURE_RTOS_Init */
-
-  /* USER CODE END AURE_RTOS_Init */
-}
-
-/* USER CODE BEGIN 1 */
-
-/* USER CODE END 1 */`;
-    }
+  // Find the file in the project structure
+  const allFiles = [
+    ...(projectData.apps?.FileX || []),
+    ...(projectData.apps?.NetXDuo || []),
+    ...(projectData.apps?.ThreadX || []),
+    ...(projectData.apps?.USBX || []),
+    ...(projectData.apps?.templates || []),
+    ...(projectData.apps?.json || []),
+    ...(projectData.pack || [])
+  ];
+  
+  const file = allFiles.find((f: any) => f.path === filePath || f.name === filePath);
+  
+  if (file?.file) {
+    return new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        resolve(e.target?.result as string || '');
+      };
+      reader.readAsText(file.file);
+    });
+  } else if (file?.content) {
+    return file.content;
   }
   
-  // Default template content
-  return `/* USER CODE BEGIN Header */
-/**
-  * @file    ${filePath.split('/').pop()?.replace('.j2', '')}
-  * @brief   Generated from template for {{ app_name }} on {{ board }}
-  */
-/* USER CODE END Header */
+  return '';
+};
 
-/* USER CODE BEGIN Content */
-
-/* USER CODE END Content */`;
+// Helper function to read file content asynchronously
+export const readFileContent = (file: File): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (e) => resolve(e.target?.result as string || '');
+    reader.onerror = (e) => reject(e);
+    reader.readAsText(file);
+  });
 };

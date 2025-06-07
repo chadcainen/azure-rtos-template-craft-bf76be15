@@ -1,4 +1,3 @@
-
 import React, { useState, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -6,6 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Upload, FolderOpen, CheckCircle, AlertTriangle, File } from 'lucide-react';
 import { STM32_COLORS } from '@/styles/stm32-theme';
+import { readFileContent } from '@/utils/projectParser';
 
 interface ProjectUploadProps {
   onProjectLoaded: (projectStructure: any) => void;
@@ -44,7 +44,7 @@ const ProjectUpload: React.FC<ProjectUploadProps> = ({ onProjectLoaded }) => {
     };
   };
 
-  const analyzeProjectStructure = (files: FileList) => {
+  const analyzeProjectStructure = async (files: FileList) => {
     const structure: any = {
       apps: {
         FileX: [],
@@ -55,31 +55,50 @@ const ProjectUpload: React.FC<ProjectUploadProps> = ({ onProjectLoaded }) => {
         templates: []
       },
       pack: [],
-      mainScript: null
+      mainScript: null,
+      projectPath: ''
     };
 
-    Array.from(files).forEach(file => {
+    // Extract project path from first file
+    const firstFile = files[0];
+    if (firstFile?.webkitRelativePath) {
+      const pathParts = firstFile.webkitRelativePath.split('/');
+      structure.projectPath = pathParts[0];
+    }
+
+    const filePromises = Array.from(files).map(async (file) => {
       const path = file.webkitRelativePath || file.name;
+      const fileInfo = { name: file.name, path: path, file: file };
+      
+      // Read JSON files content immediately
+      if (file.name.endsWith('.json')) {
+        try {
+          fileInfo.content = await readFileContent(file);
+        } catch (error) {
+          console.error(`Error reading ${file.name}:`, error);
+        }
+      }
       
       if (path.includes('apps/FileX')) {
-        structure.apps.FileX.push({ name: file.name, path: path, file });
+        structure.apps.FileX.push(fileInfo);
       } else if (path.includes('apps/NetXDuo')) {
-        structure.apps.NetXDuo.push({ name: file.name, path: path, file });
+        structure.apps.NetXDuo.push(fileInfo);
       } else if (path.includes('apps/ThreadX')) {
-        structure.apps.ThreadX.push({ name: file.name, path: path, file });
+        structure.apps.ThreadX.push(fileInfo);
       } else if (path.includes('apps/USBX')) {
-        structure.apps.USBX.push({ name: file.name, path: path, file });
+        structure.apps.USBX.push(fileInfo);
       } else if (path.includes('apps/json')) {
-        structure.apps.json.push({ name: file.name, path: path, file });
+        structure.apps.json.push(fileInfo);
       } else if (path.includes('apps/templates')) {
-        structure.apps.templates.push({ name: file.name, path: path, file });
+        structure.apps.templates.push(fileInfo);
       } else if (path.includes('pack/')) {
-        structure.pack.push({ name: file.name, path: path, file });
+        structure.pack.push(fileInfo);
       } else if (file.name === 'azrtos_pg.py') {
-        structure.mainScript = { name: file.name, path: path, file };
+        structure.mainScript = fileInfo;
       }
     });
 
+    await Promise.all(filePromises);
     return structure;
   };
 
@@ -97,20 +116,22 @@ const ProjectUpload: React.FC<ProjectUploadProps> = ({ onProjectLoaded }) => {
         return;
       }
 
+      const structure = await analyzeProjectStructure(files);
+
       setProjectInfo({
         name: 'PACK_AZRTOS_AutoGen',
         totalFiles: validation.totalFiles,
-        structure: validation.structure
+        structure: structure
       });
 
       // Store project files globally for access in tabs
-      (window as any).projectFiles = validation.structure;
+      (window as any).projectFiles = structure;
       
       setUploadStatus('success');
       
       // Notify parent component
       setTimeout(() => {
-        onProjectLoaded(validation.structure);
+        onProjectLoaded(structure);
       }, 1000);
 
     } catch (error) {
@@ -123,28 +144,6 @@ const ProjectUpload: React.FC<ProjectUploadProps> = ({ onProjectLoaded }) => {
     e.preventDefault();
     setIsDragging(false);
     
-    const items = Array.from(e.dataTransfer.items);
-    const files: File[] = [];
-    
-    items.forEach(item => {
-      if (item.kind === 'file') {
-        const entry = item.webkitGetAsEntry();
-        if (entry?.isDirectory) {
-          // Handle directory upload
-          const dirReader = (entry as any).createReader();
-          dirReader.readEntries((entries: any[]) => {
-            entries.forEach(entry => {
-              if (entry.isFile) {
-                entry.file((file: File) => {
-                  files.push(file);
-                });
-              }
-            });
-          });
-        }
-      }
-    });
-
     if (e.dataTransfer.files.length > 0) {
       handleFileSelect(e.dataTransfer.files);
     }
@@ -257,7 +256,7 @@ const ProjectUpload: React.FC<ProjectUploadProps> = ({ onProjectLoaded }) => {
               {uploadStatus === 'processing' ? (
                 <div>
                   <p className="text-lg font-medium" style={{ color: STM32_COLORS.warning }}>
-                    Processing project...
+                    Processing project files...
                   </p>
                   <div className="mt-2 w-full bg-gray-200 rounded-full h-2">
                     <div className="bg-blue-600 h-2 rounded-full animate-pulse w-3/4"></div>
